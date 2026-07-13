@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import { Link, NavLink, Route, Routes } from 'react-router-dom';
 import { Seal } from './components/Seal';
 import { THEME_LABEL, useTheme } from './theme';
@@ -10,7 +10,11 @@ import Tables from './pages/Tables';
 import Annotated from './pages/Annotated';
 import Method from './pages/Method';
 
+// 排盘页懒加载：历法库（lunar-typescript）与推演引擎单独成包
+const Paipan = lazy(() => import('./pages/Paipan'));
+
 const NAV = [
+  { to: '/paipan', label: '排盘' },
   { to: '/volumes', label: '条文库' },
   { to: '/search', label: '检索' },
   { to: '/tables', label: '取数表' },
@@ -48,6 +52,11 @@ export default function App() {
       {navOpen && <div className="nav-scrim" onClick={() => setNavOpen(false)} aria-hidden />}
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/paipan" element={
+          <Suspense fallback={<div className="page"><p className="muted">加载推演引擎…</p></div>}>
+            <Paipan />
+          </Suspense>
+        } />
         <Route path="/volumes" element={<Volumes />} />
         <Route path="/v/:n" element={<VerseView />} />
         <Route path="/search" element={<Search />} />

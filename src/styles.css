@@ -467,6 +467,29 @@ select:focus { outline: none; border-color: var(--accent); }
 }
 .tag-row { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 4px; }
 
+/* ===== 排盘表单 ===== */
+.form-card {
+  background: var(--paper);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+  padding: 15px 17px;
+  margin-top: 14px;
+}
+.paipan-grid {
+  display: grid;
+  grid-template-columns: 130px 1fr 1fr 110px;
+  gap: 12px; align-items: end;
+}
+@media (max-width: 880px) { .paipan-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .paipan-grid { grid-template-columns: 1fr; } }
+.form-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.form-field input[type="datetime-local"] { font-variant-numeric: tabular-nums; }
+.btn-run {
+  padding: 8px 14px; text-align: center; font-weight: 600;
+  border-color: var(--accent);
+}
+
 /* ===== 阅读器 / markdown ===== */
 .reader { max-width: var(--maxw-read); }
 .md { line-height: 2.05; font-size: 1.05rem; }

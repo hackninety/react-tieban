@@ -98,7 +98,44 @@ try {
   console.log('method doc h1:', mdOk);
   if (!mdOk.includes('概述')) fail('方法文献默认篇异常');
 
-  // 7. 移动端首页快照
+  // 7. 排盘推演（黄金向量：男 1924-06-15 16:00 / 求测 2025-04-20 10:00）
+  await page.goto(`${BASE}/paipan`, { waitUntil: 'networkidle0', timeout: 60000 });
+  await page.waitForSelector('.paipan-grid input[type="datetime-local"]', { timeout: 30000 });
+  await page.evaluate(() => {
+    const setVal = (el, value) => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(el, value);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    const [birth, query] = document.querySelectorAll('.paipan-grid input[type="datetime-local"]');
+    setVal(birth, '1924-06-15T16:00');
+    setVal(query, '2025-04-20T10:00');
+    document.querySelector('.btn-run').click();
+  });
+  await page.waitForFunction(() => document.querySelectorAll('.stat-row .stat').length >= 8, { timeout: 30000 });
+  const paipan = await page.evaluate(() => ({
+    stats: [...document.querySelectorAll('.stat-row .stat')].map((s) => s.textContent),
+    bazi: document.querySelector('.formula b')?.textContent ?? '',
+  }));
+  console.log('paipan stats:', JSON.stringify(paipan.stats));
+  if (paipan.bazi !== '甲子 庚午 乙丑 甲申') fail(`八字异常：${paipan.bazi}`);
+  if (!paipan.stats.some((s) => s.includes('11') && s.includes('先天命数'))) fail('先天命数非 11');
+  if (!paipan.stats.some((s) => s.includes('344') && s.includes('本命数'))) fail('本命数非 344');
+  if (!paipan.stats.some((s) => s.includes('泰'))) fail('十二辟卦非泰');
+  // 流年断语已随分包补齐（1 岁原条文 2408「吹落黄花弄笛声」）
+  await page.waitForFunction(
+    () => (document.body.textContent ?? '').includes('吹落黄花弄笛声'),
+    { timeout: 30000 },
+  );
+  const liunianRow1 = await page.evaluate(() => {
+    const tr = [...document.querySelectorAll('.dtable tbody tr')].find((r) => r.textContent.includes('吹落黄花'));
+    return tr ? tr.textContent : '';
+  });
+  console.log('liunian age1:', liunianRow1.slice(0, 80));
+  if (!liunianRow1.includes('2408')) fail('1 岁原条文非 2408');
+  await page.screenshot({ path: shot('smoke-paipan.png') });
+
+  // 8. 移动端首页快照
   await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
   await page.goto(`${BASE}/volumes`, { waitUntil: 'networkidle0', timeout: 60000 });
   await page.screenshot({ path: shot('smoke-mobile-volumes.png') });

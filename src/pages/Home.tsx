@@ -38,6 +38,10 @@ export default function Home() {
       <section>
         <h2>入口</h2>
         <div className="cards">
+          <Link className="card" to="/paipan">
+            <div className="card-head"><b>排盘推演</b><span className="muted">考刻 · 流年百岁</span></div>
+            <p>输入生辰起盘：先天命数 → 考刻定刻 → 本命条文与十二辟卦 → 流年 1–100 岁逐年断语。</p>
+          </Link>
           <Link className="card" to="/volumes">
             <div className="card-head"><b>条文库</b><span className="muted">十二集 × 1000 条</span></div>
             <p>按集浏览断语原文，年龄注记随行标示；条文号直达单条视图。</p>
