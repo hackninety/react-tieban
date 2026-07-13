@@ -15,8 +15,8 @@
  * 各派铁板神数口诀不一，本引擎忠实于所据开源实现与数据，仅供研究。
  */
 import { EIGHT_QUARTERS, quarterOfMinute, taixuanValue } from 'tbss-ts-lib/tables';
-import { computeDaYun, type BaziInfo, type DaYunInfo } from './calendar';
-import { getMaps, HOU_TIAN_GUA_NUM, NAYIN_WUXING } from './data';
+import type { BaziInfo } from './calendar';
+import { getMaps, NAYIN_WUXING } from './data';
 
 const STEMS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
 const BRANCHES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
@@ -95,18 +95,17 @@ export interface Chart {
   hexName: string;
   /** 本命条文（14-10，键：卦 × 14-7 刻 × 先天命数；无匹配为 undefined） */
   destiny?: DestinyVerses;
-  /** 后天命数（含五数寄宫后的实际值） */
+  /**
+   * 后天命数 =（先天命数＋本命数）mod 8（0 记 8），直接作 14-12 流年顺序表键。
+   * 上游 v2 曾以「五数寄宫」把 5 替换为寄宫卦后天数（艮8/坤2/离9/兑7），
+   * 但 14-12 键域恰为 1–8 全覆盖（含 5），替换为 9（下元男寄离）反致全部流年
+   * 标记/字母查空——本引擎回归 v1 原始管线，不做寄宫替换。
+   */
   pnNum: number;
-  pnRaw: number;
-  /** 五数寄宫说明（未触发为 undefined） */
-  wuShuJiGong?: { gua: string; basis: string };
-  sanYuan: string;
   /** 八卦加则起始数与口诀 */
   jiazeStart: number;
   /** 天地数（生辰八字太玄数奇偶分和，天基 25 地基 30 取余；上游常量层，展示参考） */
   tianDi: { oddSum: number; evenSum: number; tian: number; di: number };
-  /** 大限（子平起运口径，仅作流年分限参考） */
-  daYun: DaYunInfo;
   /** 求测时刻的虚岁（求测年 − 出生年 + 1；<1 记 0） */
   currentAge: number;
   liunian: LiunianRow[];
@@ -138,21 +137,6 @@ export function correctCorrection(correction: number, age: number): number {
   }
   const v = correction + 3;
   return v > 20 ? v - 20 : v;
-}
-
-/** 三元（上元 1864–1923 / 中元 1924–1983 / 下元 1984–2043，循环外推） */
-export function sanYuanOf(year: number): string {
-  const offset = ((year - 1864) % 180 + 180) % 180;
-  return offset < 60 ? '上元' : offset < 120 ? '中元' : '下元';
-}
-
-function wuShuJiGongGua(sanYuan: string, gender: string, isYang: boolean): string {
-  if (sanYuan === '上元') return gender === '男' ? '艮' : '坤';
-  if (sanYuan === '中元') {
-    return (gender === '男' && isYang) || (gender === '女' && !isYang) ? '艮' : '坤';
-  }
-  if (sanYuan === '下元') return gender === '男' ? '离' : '兑';
-  return '坤';
 }
 
 /** 八卦加则：起始数（乾 36 / 兑 3 / 其余 30）叠加，遇十取个位，逢六八止 */
@@ -295,16 +279,8 @@ export function computeChart(input: ChartInput): Chart {
   const hexName = m.hexDetail.get(`${legacyMoment}|${mainNum}`) ?? m.hexSimple.get(mainNum) ?? '未知';
   const destiny = destinyFor(hexName, legacyMoment, congNum);
 
-  // Step 7 后天命数（+五数寄宫）
-  const pnRaw = (congNum + mainNum) % 8 === 0 ? 8 : (congNum + mainNum) % 8;
-  const sanYuan = sanYuanOf(Number(birth.dateStr.slice(0, 4)));
-  let pnNum = pnRaw;
-  let wuShuJiGong: Chart['wuShuJiGong'];
-  if (pnRaw === 5) {
-    const gua = wuShuJiGongGua(sanYuan, gender, isYang);
-    pnNum = HOU_TIAN_GUA_NUM[gua] ?? 5;
-    wuShuJiGong = { gua, basis: `${sanYuan} ${gender} ${isYang ? '阳' : '阴'}` };
-  }
+  // Step 7 后天命数：mod 8 原值直用（14-12 键域 1–8 全覆盖；不做五数寄宫替换，见 Chart.pnNum 注）
+  const pnNum = (congNum + mainNum) % 8 === 0 ? 8 : (congNum + mainNum) % 8;
 
   // 天地数：八字八字符太玄数按奇偶分和（奇→天，偶→地），天基 25 地基 30 取余（上游公式）
   const chars = [...`${birth.bazi.year}${birth.bazi.month}${birth.bazi.day}${birth.bazi.time}`];
@@ -321,9 +297,8 @@ export function computeChart(input: ChartInput): Chart {
     di: (evenSum > 30 ? evenSum - 30 : evenSum) % 10,
   };
 
-  // 大限（子平起运，分限参考）与当前虚岁
+  // 当前虚岁（求测年 − 出生年 + 1）
   const birthYear = Number(birth.dateStr.slice(0, 4));
-  const daYun = computeDaYun(birth, gender);
   const currentAge = Math.max(0, Number(query.dateStr.slice(0, 4)) - birthYear + 1);
 
   // Step 8 流年（1–108 岁）
@@ -380,9 +355,9 @@ export function computeChart(input: ChartInput): Chart {
     kaokeMoment, kaokeGroup, quarter: quarter.name, keGanNum, legacyMoment,
     quarterManual: !!override,
     mainNum, finalFortuneNum, hexName, destiny,
-    pnNum, pnRaw, wuShuJiGong, sanYuan,
+    pnNum,
     jiazeStart: hexName === '乾' ? 36 : hexName === '兑' ? 3 : 30,
-    tianDi, daYun, currentAge,
+    tianDi, currentAge,
     liunian,
   };
 }

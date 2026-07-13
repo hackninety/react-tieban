@@ -44,6 +44,9 @@ export function chartToMarkdown(chart: Chart, resolve: VerseResolver, opts?: { n
   L.push('## 基础信息', '', '```');
   L.push(`性别:${chart.gender}, 农历:${b.lunarStr}，闰月${b.isLeap ? '是' : '否'}，出生八字：${b.bazi.year} ${b.bazi.month} ${b.bazi.day} ${b.bazi.time}`);
   L.push(`求测日期：阳历：${q.dateStr}     八字：${q.bazi.year} ${q.bazi.month} ${q.bazi.day} ${q.bazi.time}`);
+  if (b.solarTime.applied) {
+    L.push(`真太阳时：${b.solarTime.original} → ${b.dateStr}（${b.solarTime.place}，地方时差 ${b.solarTime.longitudeMinutes} 分 + 均时差 ${b.solarTime.eotMinutes} 分 = ${b.solarTime.offsetMinutes} 分；求测时刻同址同校）`);
+  }
   L.push('```', '');
 
   L.push('## 基础排盘', '');
@@ -55,21 +58,10 @@ export function chartToMarkdown(chart: Chart, resolve: VerseResolver, opts?: { n
   L.push(`- 本命数：${chart.mainNum}`);
   L.push(`- 终局条文数：${chart.mainNum} + ${chart.keGanNum} × 48 = ${chart.finalFortuneNum} —— ${mdEscape(verseCell(chart.finalFortuneNum, resolve))}`);
   L.push(`- 十二辟卦：${chart.hexName}`);
-  L.push(`- 后天命数：${chart.pnNum}${chart.wuShuJiGong ? `（五数寄宫 → ${chart.wuShuJiGong.gua}，${chart.wuShuJiGong.basis}）` : ''}`);
-  L.push(`- 三元：${chart.sanYuan}`);
+  L.push(`- 后天命数：${chart.pnNum}`);
   L.push(`- 天地数：天 ${chart.tianDi.tian} · 地 ${chart.tianDi.di}（太玄奇和 ${chart.tianDi.oddSum} / 偶和 ${chart.tianDi.evenSum}）`);
   L.push(`- 六亲宫位：年柱父母宫 ${b.bazi.year} · 月柱兄弟宫 ${b.bazi.month} · 日柱夫妻宫 ${b.bazi.day} · 时柱子女宫 ${b.bazi.time}`);
   if (chart.currentAge >= 1) L.push(`- 当前虚岁：${chart.currentAge}`);
-  L.push('');
-
-  L.push('## 大限（子平起运参考）', '');
-  L.push(`起运：出生后 ${chart.daYun.qiyun.years} 年 ${chart.daYun.qiyun.months} 月 ${chart.daYun.qiyun.days} 天（${chart.daYun.qiyun.solar} 上运，${chart.daYun.direction}）。铁板原文无大运取数，此层仅作流年分限参考。`, '');
-  L.push('| 段 | 干支 | 虚岁 | 公历 |');
-  L.push('|----|------|------|------|');
-  for (const p of chart.daYun.periods) {
-    if (p.startAge > 108) continue;
-    L.push(`| ${p.index === 0 ? '童限' : `第${p.index}运`} | ${p.ganzhi || '—'} | ${Math.max(p.startAge, 1)}–${p.endAge} | ${p.startYear}–${p.endYear} |`);
-  }
   L.push('');
 
   L.push('## 考刻对比（八刻）', '');
@@ -141,6 +133,9 @@ export function chartToToon(chart: Chart, resolve: VerseResolver): string {
       birthBazi: `${b.bazi.year} ${b.bazi.month} ${b.bazi.day} ${b.bazi.time}`,
       querySolar: q.dateStr,
       queryBazi: `${q.bazi.year} ${q.bazi.month} ${q.bazi.day} ${q.bazi.time}`,
+      solarTime: b.solarTime.applied
+        ? `${b.solarTime.original} → ${b.dateStr}（${b.solarTime.place}，${b.solarTime.offsetMinutes}分：地方时差${b.solarTime.longitudeMinutes}+均时差${b.solarTime.eotMinutes}；求测同校）`
+        : '-',
     },
     core: {
       congNum: chart.congNum,
@@ -159,23 +154,10 @@ export function chartToToon(chart: Chart, resolve: VerseResolver): string {
       finalVerse: text(finalVerse),
       hexName: chart.hexName,
       pnNum: chart.pnNum,
-      wuShuJiGong: chart.wuShuJiGong?.gua ?? '-',
-      sanYuan: chart.sanYuan,
       tianShu: chart.tianDi.tian,
       diShu: chart.tianDi.di,
-      qiyun: `${chart.daYun.qiyun.years}年${chart.daYun.qiyun.months}月${chart.daYun.qiyun.days}天（${chart.daYun.qiyun.solar}，${chart.daYun.direction}）`,
       currentAge: chart.currentAge,
     },
-    daYun: chart.daYun.periods
-      .filter((p) => p.startAge <= 108)
-      .map((p) => ({
-        idx: p.index,
-        ganzhi: p.ganzhi || '-',
-        startAge: Math.max(p.startAge, 1),
-        endAge: p.endAge,
-        startYear: p.startYear,
-        endYear: p.endYear,
-      })),
     destiny: chart.destiny
       ? {
           base: chart.destiny.base,

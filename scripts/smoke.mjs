@@ -134,13 +134,6 @@ try {
   console.log('liunian age1:', liunianRow1.slice(0, 80));
   if (!liunianRow1.includes('2408')) fail('1 岁原条文非 2408');
   if (!liunianRow1.includes('1924')) fail('流年缺公历年份列');
-  const daxian = await page.evaluate(() => ({
-    tong: [...document.querySelectorAll('.dayun-row')].some((r) => r.textContent.includes('童限（1–7 岁')),
-    first: [...document.querySelectorAll('.dayun-row')].some((r) => r.textContent.includes('大限 辛未（8–17 岁')),
-    count: document.querySelectorAll('.dayun-row').length,
-  }));
-  console.log('daxian rows:', JSON.stringify(daxian));
-  if (!daxian.tong || !daxian.first) fail('大限分段表头缺失');
   await page.screenshot({ path: shot('smoke-paipan.png') });
 
   // 7b. 考刻对比：八刻候选 + 采用正刻（k=8）重排全盘（泰 → 否）
@@ -170,6 +163,39 @@ try {
   if (!override.stats.some((s) => s.includes('否'))) fail('采用后卦非否');
   if (!override.url.includes('k=8')) fail('URL 未带 k=8（分享参数）');
   await page.screenshot({ path: shot('smoke-kaoke.png') });
+
+  // 7b2. 后天命数 5 回归（用户盘，曾全表问号）
+  await page.goto(`${BASE}/paipan?g=%E7%94%B7&b=1996-06-01T05%3A57&q=2026-07-13T13%3A31`, { waitUntil: 'networkidle0', timeout: 60000 });
+  await page.waitForFunction(
+    () => [...document.querySelectorAll('.stat-row .stat')].some((s) => s.textContent.includes('586')),
+    { timeout: 30000 },
+  );
+  await page.waitForFunction(() => document.querySelectorAll('.dtable').length >= 3, { timeout: 30000 });
+  const pn5 = await page.evaluate(() => {
+    const stats = [...document.querySelectorAll('.stat-row .stat')].map((s) => s.textContent);
+    const tables = [...document.querySelectorAll('.dtable')];
+    const liunianTable = tables[tables.length - 1];
+    const row1 = liunianTable.querySelector('tbody tr');
+    const tds = [...row1.querySelectorAll('td')].map((td) => td.textContent.trim());
+    return { stats: stats.filter((s) => s.includes('后天') || s.includes('辟卦')), letter: tds[5], marker: tds[4], hasVerse: !!row1.querySelector('a.verse-n') };
+  });
+  console.log('pn5 regression:', JSON.stringify(pn5));
+  if (!pn5.stats.some((s) => s.includes('5'))) fail('后天命数应为 5（不寄宫）');
+  if (pn5.marker !== '水') fail(`1 岁标记应为水，得 ${pn5.marker}`);
+  if (pn5.letter === '—' || pn5.letter === '?') fail('流年字母仍为问号');
+  if (!pn5.hasVerse) fail('流年断语未就位');
+
+  // 7b3. 真太阳时深链（乌鲁木齐 87.62°E：05:57 → 03:50，时柱丁卯 → 丙寅）
+  await page.goto(`${BASE}/paipan?g=%E7%94%B7&b=1996-06-01T05%3A57&q=2026-07-13T13%3A31&lng=87.62&tz=8&loc=%E4%B9%8C%E9%B2%81%E6%9C%A8%E9%BD%90`, { waitUntil: 'networkidle0', timeout: 60000 });
+  await page.waitForFunction(() => (document.body.textContent ?? '').includes('真太阳时'), { timeout: 30000 });
+  const solar = await page.evaluate(() => {
+    const t = document.body.textContent ?? '';
+    return { corrected: t.includes('1996-06-01 05:57 → 1996-06-01 03:50'), yinshi: t.includes('丙寅') };
+  });
+  console.log('solar:', JSON.stringify(solar));
+  if (!solar.corrected) fail('真太阳时校正行缺失或数值异常');
+  if (!solar.yinshi) fail('校正后时柱应为丙寅');
+  await page.screenshot({ path: shot('smoke-solar.png') });
 
   // 7c. 盘面导出：先经 URL 深链回放初刻黄金盘（验证分享参数），再 CDP 拦截下载校验
   await page.goto(`${BASE}/paipan?g=%E7%94%B7&b=1924-06-15T16%3A00&q=2025-04-20T10%3A00`, { waitUntil: 'networkidle0', timeout: 60000 });
@@ -203,7 +229,7 @@ try {
     if (!toon.includes('format: tbss-chart')) fail('TOON 缺 meta');
     if (!toon.includes('liunian[100]{')) fail('TOON 缺流年表');
     if (!toon.includes('吹落黄花弄笛声')) fail('TOON 缺断语文本');
-    if (!toon.includes('daYun[')) fail('TOON 缺大限表');
+    if (toon.includes('daYun')) fail('TOON 不应再含子平大限');
   }
   await page.evaluate(() => {
     [...document.querySelectorAll('.export-row .btn')].find((b) => b.textContent.includes('下载 MD')).click();

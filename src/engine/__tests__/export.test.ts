@@ -33,10 +33,11 @@ describe('Markdown 导出', () => {
     expect(md).toContain('基数 430，序数 470');
     expect(md).toContain('430+470+8860=9760');
     expect(md).toContain('| 才能前程 | 底本为 × | — |');
-    // 大限与天地数细节
-    expect(md).toContain('## 大限（子平起运参考）');
-    expect(md).toContain('| 童限 | — | 1–7 | 1924–1930 |');
-    expect(md).toContain('| 第1运 | 辛未 | 8–17 | 1931–1940 |');
+    // 天地数与六亲宫位细节；子平大限层已按「原汁原味」要求移除
+    // （断语原文含「大限已定」等古义用词，只断言章节级不存在）
+    expect(md).not.toContain('## 大限');
+    expect(md).not.toContain('起运：');
+    expect(md).not.toContain('子平');
     expect(md).toContain('- 天地数：天 8 · 地 4（太玄奇和 43 / 偶和 24）');
     expect(md).toContain('- 六亲宫位：年柱父母宫 甲子');
     // 流年 1 岁行三口径断语（含年份列）
@@ -58,13 +59,12 @@ describe('TOON 导出', () => {
     expect(toon).toContain('format: tbss-chart');
     expect(toon).toContain('liunian[100]{age,year,ganzhi,sound,marker,letter,corr,corrected,formula,n,text,ages,corrN,corrText,corrAges,tbN,tbText,tbAges}:');
     expect(toon).toContain('candidates[8]{quarter,keGan,moment,hex,finalN,finalText}:');
-    expect(toon).toContain('daYun[');
-    expect(toon).toContain('qiyun: 7年4月10天（1931-10-25，顺行）');
+    expect(toon).not.toContain('daYun');
+    expect(toon).toContain('solarTime: "-"'); // 黄金例未校正真太阳时
 
     const back = decode(toon) as Record<string, never> & {
       core: { mainNum: number; hexName: string; finalFortuneNum: number; tianShu: number; diShu: number; currentAge: number };
       destiny: { base: number; rows: { n: number; text: string }[] };
-      daYun: { idx: number; ganzhi: string; startAge: number }[];
       liunian: { age: number; year: number; n: number; text: string; ages: string }[];
     };
     expect(back.core.mainNum).toBe(344);
@@ -75,8 +75,6 @@ describe('TOON 导出', () => {
     expect(back.core.currentAge).toBe(102);
     expect(back.destiny.base).toBe(430);
     expect(back.destiny.rows.some((r) => r.n === 9760)).toBe(true);
-    expect(back.daYun[0]).toMatchObject({ idx: 0, ganzhi: '-', startAge: 1 });
-    expect(back.daYun[1]).toMatchObject({ idx: 1, ganzhi: '辛未', startAge: 8 });
     expect(back.liunian.length).toBe(100);
     expect(back.liunian[0]).toMatchObject({ age: 1, year: 1924, n: 2408, ages: '1' });
     expect(back.liunian[0].text).toContain('吹落黄花');

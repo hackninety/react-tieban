@@ -3,8 +3,9 @@ import { foldIncludes } from 'tbss-ts-lib';
 import { toBaziInfo } from '../calendar';
 import {
   applyJiaze, candidateFortunes, computeChart, computeQuarterCandidates,
-  correctCorrection, sanYuanOf, scoreQuarterCandidates,
+  correctCorrection, scoreQuarterCandidates,
 } from '../engine';
+import { applySolarCorrection, equationOfTimeMinutes, getTrueSolarOffset } from '../solar';
 
 /**
  * 黄金向量：xaminxan/tiebanshenshu README 排盘示例
@@ -57,12 +58,9 @@ describe('基础排盘（黄金向量）', () => {
     expect(c.finalFortuneNum).toBe(392);
   });
 
-  it('卦与后天命数：泰卦，后天 3（355%8），中元', () => {
+  it('卦与后天命数：泰卦，后天 3（355%8）', () => {
     expect(c.hexName).toBe('泰');
-    expect(c.pnRaw).toBe(3);
     expect(c.pnNum).toBe(3);
-    expect(c.wuShuJiGong).toBeUndefined();
-    expect(c.sanYuan).toBe('中元');
   });
 
   it('本命条文：泰 × 初刻 × 先天 11（基数 430 序数 470）', () => {
@@ -199,30 +197,8 @@ describe('考刻对比（八刻候选）', () => {
   });
 });
 
-describe('大限与流年细节', () => {
+describe('流年细节', () => {
   const c = goldenChart();
-
-  it('大限（子平顺行）：童限 1–7，首运辛未 8–17 起 1931', () => {
-    expect(c.daYun.direction).toBe('顺行');
-    expect(c.daYun.qiyun).toMatchObject({ years: 7, months: 4, days: 10, solar: '1931-10-25' });
-    const [tong, first] = c.daYun.periods;
-    expect(tong).toMatchObject({ index: 0, ganzhi: '', startAge: 1, endAge: 7, startYear: 1924 });
-    expect(first).toMatchObject({ index: 1, ganzhi: '辛未', startAge: 8, endAge: 17, startYear: 1931 });
-    expect(c.daYun.periods[2].ganzhi).toBe('壬申');
-    // 覆盖至 108 岁
-    expect(c.daYun.periods[c.daYun.periods.length - 1].endAge).toBeGreaterThanOrEqual(108);
-  });
-
-  it('女命逆行首运己巳', () => {
-    const f = computeChart({
-      gender: '女',
-      birth: toBaziInfo({ year: 1924, month: 6, day: 15, hour: 16, minute: 0 }),
-      query: toBaziInfo({ year: 2025, month: 4, day: 20, hour: 10, minute: 0 }),
-    });
-    expect(f.daYun.direction).toBe('逆行');
-    expect(f.daYun.periods[1].ganzhi).toBe('己巳');
-    expect(f.daYun.periods[1].startAge).toBe(4);
-  });
 
   it('天地数：甲子庚午乙丑甲申 → 奇和 43 偶和 24 → 天 8 地 4', () => {
     expect(c.tianDi).toEqual({ oddSum: 43, evenSum: 24, tian: 8, di: 4 });
@@ -235,6 +211,66 @@ describe('大限与流年细节', () => {
   });
 });
 
+describe('后天命数 5 回归（用户盘：男 1996-06-01 05:57，曾全表问号）', () => {
+  // 上游 v2 五数寄宫把 5 换成离 9，超出 14-12 键域（1–8）致流年标记/字母全空；
+  // 回归 v1 原值管线后应全程可查。
+  const c = computeChart({
+    gender: '男',
+    birth: toBaziInfo({ year: 1996, month: 6, day: 1, hour: 5, minute: 57 }),
+    query: toBaziInfo({ year: 2026, month: 7, day: 13, hour: 13, minute: 31 }),
+  });
+
+  it('基础链：先天 3 / 本命 586 / 乾卦 / 后天 5（不寄宫）', () => {
+    expect(`${c.birth.bazi.year} ${c.birth.bazi.month} ${c.birth.bazi.day} ${c.birth.bazi.time}`).toBe('丙子 癸巳 己巳 丁卯');
+    expect(c.congNum).toBe(3);
+    expect(c.mainNum).toBe(586);
+    expect(c.hexName).toBe('乾');
+    expect(c.pnNum).toBe(5); // (3+586)%8，原值直用
+  });
+
+  it('流年全表不再问号：标记/字母全程命中，条文号就位', () => {
+    expect(c.liunian.every((r) => r.marker !== '?')).toBe(true);
+    expect(c.liunian.every((r) => r.letter !== '?')).toBe(true);
+    expect(c.liunian[0].marker).toBe('水'); // 14-12 子|5
+    expect(c.liunian.filter((r) => r.fortune > 0).length).toBeGreaterThan(90);
+  });
+});
+
+describe('真太阳时', () => {
+  it('均时差量级与两处锚点', () => {
+    // 6 月初 EoT ≈ +2 分；11 月初 ≈ +16 分；2 月中 ≈ −14 分
+    expect(equationOfTimeMinutes(1996, 6, 1)).toBeGreaterThan(1);
+    expect(equationOfTimeMinutes(1996, 6, 1)).toBeLessThan(3.5);
+    expect(equationOfTimeMinutes(2024, 11, 3)).toBeGreaterThan(15);
+    expect(equationOfTimeMinutes(2024, 2, 12)).toBeLessThan(-13);
+  });
+
+  it('偏移合成：乌鲁木齐 87.62°E（北京时）≈ −127 分', () => {
+    const off = getTrueSolarOffset(1996, 6, 1, 87.62, 120);
+    expect(off.longitudeMinutes).toBe(-130 + 0); // (87.62-120)*4 ≈ -129.5 → -130
+    expect(off.total).toBeLessThanOrEqual(-126);
+    expect(off.total).toBeGreaterThanOrEqual(-128);
+  });
+
+  it('校正改时柱与八刻：05:57 乌鲁木齐 → 03:50 寅时（丙寅）', () => {
+    const { corrected, info } = applySolarCorrection(
+      { year: 1996, month: 6, day: 1, hour: 5, minute: 57 }, 87.62, 8, '乌鲁木齐',
+    );
+    expect(info.applied).toBe(true);
+    expect(corrected.hour).toBe(3);
+    const b = toBaziInfo(corrected, info);
+    expect(b.bazi.time).toBe('丙寅');
+    expect(b.solarTime.place).toBe('乌鲁木齐');
+    expect(b.solarTime.original).toBe('1996-06-01 05:57');
+  });
+
+  it('未提供经度不校正', () => {
+    const { corrected, info } = applySolarCorrection({ year: 1996, month: 6, day: 1, hour: 5, minute: 57 });
+    expect(info.applied).toBe(false);
+    expect(corrected.hour).toBe(5);
+  });
+});
+
 describe('规则函数', () => {
   it('校正数岁段规则', () => {
     expect(correctCorrection(3, 1)).toBe(5);   // 1–10 岁 +2
@@ -244,13 +280,6 @@ describe('规则函数', () => {
     expect(correctCorrection(18, 30)).toBe(1); // >20 减 20
     expect(correctCorrection(0, 5)).toBe(0);
     expect(correctCorrection(3, 81)).toBe(5);  // 81–108 岁 +2
-  });
-
-  it('三元界定与循环外推', () => {
-    expect(sanYuanOf(1900)).toBe('上元');
-    expect(sanYuanOf(1924)).toBe('中元');
-    expect(sanYuanOf(2024)).toBe('下元');
-    expect(sanYuanOf(2044)).toBe('上元');
   });
 
   it('八卦加则：遇十取个位，逢六八止', () => {

@@ -3,12 +3,14 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { DISCLAIMER, foldIncludes } from 'tbss-ts-lib';
 import { getVerses, type Verse } from 'tbss-ts-lib/verses';
 import { CORE_FORMULA } from 'tbss-ts-lib/tables';
-import { toBaziInfo, type DaYunPeriod } from '../engine/calendar';
+import { toBaziInfo } from '../engine/calendar';
 import {
   FOUR_PILLAR_PALACES, candidateFortunes, computeChart, computeQuarterCandidates,
   scoreQuarterCandidates, type Chart,
 } from '../engine/engine';
 import { chartToMarkdown, chartToToon, exportFileName } from '../engine/export';
+import { applySolarCorrection } from '../engine/solar';
+import { PROVINCES, findLongitude } from '../engine/cities';
 
 type VerseMap = Map<number, Verse>;
 
@@ -65,26 +67,44 @@ export default function Paipan() {
   const pQuarter = Number(params.get('k')) || 0;
   const pFacts = params.get('f') ?? '';
 
+  const pLng = params.get('lng');
+  const pTz = params.get('tz');
+  const pLoc = params.get('loc') ?? '';
+
   const [gender, setGender] = useState<'男' | '女'>(pGender);
   const [birthStr, setBirthStr] = useState(pBirth || '1990-01-01T12:00');
   const [queryStr, setQueryStr] = useState(pQuery || nowLocal());
   const [facts, setFacts] = useState(pFacts);
   const [verses, setVerses] = useState<VerseMap>(new Map());
 
-  // 盘面完全由 URL 参数派生（分享/回放/冒烟一致）
+  // 出生地（真太阳时）：off 不校正 / city 城市查经度 / manual 手动经度+时区
+  const [locMode, setLocMode] = useState<'off' | 'city' | 'manual'>(pLng ? (pLoc && !pLoc.startsWith('经度') ? 'city' : 'manual') : 'off');
+  const [province, setProvince] = useState('北京');
+  const [cityName, setCityName] = useState('北京');
+  const [district, setDistrict] = useState('市区');
+  const [manualLng, setManualLng] = useState(pLng ?? '');
+  const [manualTz, setManualTz] = useState(pTz ?? '8');
+
+  // 盘面完全由 URL 参数派生（分享/回放/冒烟一致）；lng/tz 存在时对出生与求测同施真太阳时
   const chart: Chart | undefined = useMemo(() => {
     const b = pBirth && parseLocal(pBirth);
     const q = pQuery && parseLocal(pQuery);
     if (!b || !q) return undefined;
     try {
+      const lng = pLng !== null && pLng !== '' ? Number(pLng) : undefined;
+      const tz = pTz !== null && pTz !== '' ? Number(pTz) : 8;
+      const cb = applySolarCorrection(b, lng, tz, pLoc || undefined);
+      const cq = applySolarCorrection(q, lng, tz, pLoc || undefined);
       return computeChart({
-        gender: pGender, birth: toBaziInfo(b), query: toBaziInfo(q),
+        gender: pGender,
+        birth: toBaziInfo(cb.corrected, cb.info),
+        query: toBaziInfo(cq.corrected, cq.info),
         quarterOverride: pQuarter >= 1 && pQuarter <= 8 ? pQuarter : undefined,
       });
     } catch {
       return undefined;
     }
-  }, [pGender, pBirth, pQuery, pQuarter]);
+  }, [pGender, pBirth, pQuery, pQuarter, pLng, pTz, pLoc]);
 
   const candidates = useMemo(() => (chart ? computeQuarterCandidates(chart) : []), [chart]);
 
@@ -92,6 +112,21 @@ export default function Paipan() {
     const next: Record<string, string> = { g: gender, b: birthStr, q: queryStr };
     if (facts.trim()) next.f = facts.trim();
     if (pQuarter) next.k = String(pQuarter);
+    // 出生地 → lng/tz/loc 参数
+    if (locMode === 'city') {
+      const lng = findLongitude(province, cityName, district);
+      if (lng !== undefined) {
+        next.lng = String(lng);
+        next.tz = '8';
+        next.loc = district === '市区' ? cityName : `${cityName}${district}`;
+      }
+    } else if (locMode === 'manual' && manualLng.trim()) {
+      const lng = Number(manualLng);
+      if (Number.isFinite(lng) && lng >= -180 && lng <= 180) {
+        next.lng = String(lng);
+        next.tz = manualTz.trim() || '8';
+      }
+    }
     Object.assign(next, patch);
     for (const k of Object.keys(next)) if (!next[k]) delete next[k];
     setParams(next);
@@ -183,6 +218,74 @@ export default function Paipan() {
             <button className="btn btn-run" onClick={() => run({ k: '' })}>起盘 →</button>
           </label>
         </div>
+        <div className="paipan-grid" style={{ gridTemplateColumns: '130px 1fr 1fr 1fr', marginTop: 12 }}>
+          <label className="form-field">
+            <span className="muted">真太阳时</span>
+            <select value={locMode} style={{ margin: 0 }}
+              onChange={(e) => setLocMode(e.target.value as typeof locMode)}>
+              <option value="off">不校正</option>
+              <option value="city">按城市</option>
+              <option value="manual">手动经度</option>
+            </select>
+          </label>
+          {locMode === 'city' && (
+            <>
+              <label className="form-field">
+                <span className="muted">省份</span>
+                <select value={province} style={{ margin: 0 }} onChange={(e) => {
+                  const p = PROVINCES.find((x) => x.name === e.target.value);
+                  setProvince(e.target.value);
+                  setCityName(p?.cities[0]?.name ?? '');
+                  setDistrict(p?.cities[0]?.districts[0]?.name ?? '市区');
+                }}>
+                  {PROVINCES.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+                </select>
+              </label>
+              <label className="form-field">
+                <span className="muted">城市</span>
+                <select value={cityName} style={{ margin: 0 }} onChange={(e) => {
+                  const c = PROVINCES.find((x) => x.name === province)?.cities.find((x) => x.name === e.target.value);
+                  setCityName(e.target.value);
+                  setDistrict(c?.districts[0]?.name ?? '市区');
+                }}>
+                  {(PROVINCES.find((x) => x.name === province)?.cities ?? []).map((c) => (
+                    <option key={c.name} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="form-field">
+                <span className="muted">区县</span>
+                <select value={district} style={{ margin: 0 }} onChange={(e) => setDistrict(e.target.value)}>
+                  {(PROVINCES.find((x) => x.name === province)?.cities.find((x) => x.name === cityName)?.districts ?? []).map((d) => (
+                    <option key={d.name} value={d.name}>{d.name}（{d.longitude}°）</option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
+          {locMode === 'manual' && (
+            <>
+              <label className="form-field">
+                <span className="muted">经度（东经正、西经负）</span>
+                <input className="search-box" inputMode="decimal" placeholder="如 87.62"
+                  value={manualLng} onChange={(e) => setManualLng(e.target.value)} style={{ margin: 0 }} />
+              </label>
+              <label className="form-field">
+                <span className="muted">时区 UTC 偏移（小时）</span>
+                <input className="search-box" inputMode="numeric" placeholder="8"
+                  value={manualTz} onChange={(e) => setManualTz(e.target.value)} style={{ margin: 0 }} />
+              </label>
+              <span className="muted" style={{ alignSelf: 'end', paddingBottom: 8 }}>
+                真太阳时 = 标准时 + (经度−时区中央经线)×4 分 + 均时差
+              </span>
+            </>
+          )}
+          {locMode === 'off' && (
+            <span className="muted" style={{ alignSelf: 'end', paddingBottom: 8, gridColumn: 'span 3' }}>
+              铁板取数精确到刻（15 分钟），建议按出生地校正真太阳时；出生与求测时刻同址同校。
+            </span>
+          )}
+        </div>
       </div>
 
       {chart && b && (
@@ -200,6 +303,15 @@ export default function Paipan() {
               性别 {chart.gender} · 农历 {b.lunarStr} · 出生八字 <b>{b.bazi.year} {b.bazi.month} {b.bazi.day} {b.bazi.time}</b>
               <br />
               求测 {chart.query.dateStr} · 八字 {chart.query.bazi.year} {chart.query.bazi.month} {chart.query.bazi.day} {chart.query.bazi.time}
+              {b.solarTime.applied && (
+                <>
+                  <br />
+                  <span style={{ color: 'var(--seal)' }}>
+                    真太阳时：{b.solarTime.original} → {b.dateStr}（{b.solarTime.place}，
+                    地方时差 {b.solarTime.longitudeMinutes} 分 + 均时差 {b.solarTime.eotMinutes} 分 = {b.solarTime.offsetMinutes} 分；求测同校）
+                  </span>
+                </>
+              )}
               <br />
               <span className="muted">
                 六亲宫位：{FOUR_PILLAR_PALACES.map((p, i) => {
@@ -219,13 +331,8 @@ export default function Paipan() {
               </div>
               <div className="stat"><b>{chart.mainNum}</b><span>本命数</span></div>
               <div className="stat"><b>{chart.hexName}</b><span>十二辟卦</span></div>
-              <div className="stat"><b>{chart.pnNum}</b><span>后天命数{chart.wuShuJiGong ? ` · 寄${chart.wuShuJiGong.gua}` : ''}</span></div>
-              <div className="stat"><b>{chart.sanYuan}</b><span>三元</span></div>
+              <div className="stat"><b>{chart.pnNum}</b><span>后天命数</span></div>
               <div className="stat"><b>{chart.tianDi.tian} / {chart.tianDi.di}</b><span>天数 / 地数</span></div>
-              <div className="stat">
-                <b>{chart.daYun.periods[1]?.startAge ?? '—'}岁</b>
-                <span>上运（{chart.daYun.direction}·{chart.daYun.qiyun.years}年{chart.daYun.qiyun.months}月）</span>
-              </div>
               {chart.currentAge >= 1 && chart.currentAge <= 100 && (
                 <div className="stat"><b>{chart.currentAge}</b><span>当前虚岁</span></div>
               )}
@@ -331,12 +438,10 @@ export default function Paipan() {
           </section>
 
           <section>
-            <h2>流年条文（1–100 岁 · 按大限分段）</h2>
+            <h2>流年条文（1–100 岁）</h2>
             <p className="muted">
-              断语年龄注记与实岁吻合者以 <span className="verse-ages hit">✓ 绿色</span> 标示——年龄相验为考刻之凭；
-              {chart.currentAge >= 1 && chart.currentAge <= 100 && <>当前虚岁（{chart.currentAge}）行以朱色衬底；</>}
-              大限为子平起运口径（{chart.daYun.direction}，{chart.daYun.qiyun.years}年{chart.daYun.qiyun.months}月{chart.daYun.qiyun.days}天上运），
-              铁板原文无大运取数，仅作分限参考。
+              断语年龄注记与实岁吻合者以 <span className="verse-ages hit">✓ 绿色</span> 标示——年龄相验为考刻之凭
+              {chart.currentAge >= 1 && chart.currentAge <= 100 && <>；当前虚岁（{chart.currentAge}）行以朱色衬底</>}。
             </p>
             <div className="dtable-wrap" style={{ maxHeight: '72dvh', overflowY: 'auto' }}>
               <table className="dtable">
@@ -350,38 +455,21 @@ export default function Paipan() {
                   </tr>
                 </thead>
                 <tbody>
-                  {chart.liunian.slice(0, 100).flatMap((r) => {
-                    const rows = [];
-                    const period: DaYunPeriod | undefined = chart.daYun.periods.find((p) => r.age >= p.startAge && r.age <= p.endAge);
-                    if (period && r.age === Math.max(period.startAge, 1)) {
-                      const endAge = Math.min(period.endAge, 100);
-                      const endYear = period.startYear + (endAge - period.startAge);
-                      rows.push(
-                        <tr key={`dy-${period.index}`} className="dayun-row">
-                          <td colSpan={11}>
-                            {period.ganzhi ? `大限 ${period.ganzhi}` : '童限'}
-                            （{Math.max(period.startAge, 1)}–{endAge} 岁 · {period.startYear}–{endYear}）
-                          </td>
-                        </tr>,
-                      );
-                    }
-                    rows.push(
-                      <tr key={r.age} className={r.age === chart.currentAge ? 'row-current' : ''}>
-                        <td>{r.age}</td>
-                        <td className="muted">{r.year}</td>
-                        <td>{r.ganzhi}</td>
-                        <td>{r.sound}</td>
-                        <td>{r.marker}</td>
-                        <td>{r.letter === '?' ? <span className="muted">—</span> : r.letter}</td>
-                        <td>{r.correction ? `${r.correction}→${r.correctedCorrection}` : <span className="muted">—</span>}</td>
-                        <td>{r.formula || <span className="muted">—</span>}</td>
-                        <td style={{ whiteSpace: 'normal' }}><VerseCell n={r.fortune} verses={verses} rowAge={r.age} /></td>
-                        <td style={{ whiteSpace: 'normal' }}><VerseCell n={r.correctedFortune} verses={verses} rowAge={r.age} /></td>
-                        <td style={{ whiteSpace: 'normal' }}><VerseCell n={r.tiebanFortune} verses={verses} rowAge={r.age} /></td>
-                      </tr>,
-                    );
-                    return rows;
-                  })}
+                  {chart.liunian.slice(0, 100).map((r) => (
+                    <tr key={r.age} className={r.age === chart.currentAge ? 'row-current' : ''}>
+                      <td>{r.age}</td>
+                      <td className="muted">{r.year}</td>
+                      <td>{r.ganzhi}</td>
+                      <td>{r.sound}</td>
+                      <td>{r.marker}</td>
+                      <td>{r.letter === '?' ? <span className="muted">—</span> : r.letter}</td>
+                      <td>{r.correction ? `${r.correction}→${r.correctedCorrection}` : <span className="muted">—</span>}</td>
+                      <td>{r.formula || <span className="muted">—</span>}</td>
+                      <td style={{ whiteSpace: 'normal' }}><VerseCell n={r.fortune} verses={verses} rowAge={r.age} /></td>
+                      <td style={{ whiteSpace: 'normal' }}><VerseCell n={r.correctedFortune} verses={verses} rowAge={r.age} /></td>
+                      <td style={{ whiteSpace: 'normal' }}><VerseCell n={r.tiebanFortune} verses={verses} rowAge={r.age} /></td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
