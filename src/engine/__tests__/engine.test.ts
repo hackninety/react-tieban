@@ -5,7 +5,7 @@ import {
   applyJiaze, candidateFortunes, computeChart, computeQuarterCandidates,
   correctCorrection, scoreQuarterCandidates,
 } from '../engine';
-import { applySolarCorrection, equationOfTimeMinutes, getTrueSolarOffset } from '../solar';
+import { applySolarCorrection, equationOfTimeMinutes, getTrueSolarOffset, nowStringForOffset } from '../solar';
 
 /**
  * 黄金向量：xaminxan/tiebanshenshu README 排盘示例
@@ -268,6 +268,18 @@ describe('真太阳时', () => {
     const { corrected, info } = applySolarCorrection({ year: 1996, month: 6, day: 1, hour: 5, minute: 57 });
     expect(info.applied).toBe(false);
     expect(corrected.hour).toBe(5);
+  });
+
+  it('「此刻」时区换算：同一 UTC 瞬间按盘面时区表达墙钟', () => {
+    const fixed = new Date(Date.UTC(2026, 6, 13, 5, 0)); // 2026-07-13 05:00 UTC
+    expect(nowStringForOffset(8, fixed)).toBe('2026-07-13T13:00');  // 北京
+    expect(nowStringForOffset(9, fixed)).toBe('2026-07-13T14:00');  // 东京
+    expect(nowStringForOffset(-5, fixed)).toBe('2026-07-13T00:00'); // 美东
+    expect(nowStringForOffset(8, new Date(Date.UTC(2026, 6, 13, 17, 30)))).toBe('2026-07-14T01:30'); // 跨日
+    // 缺省随浏览器/进程本地时区：与 Date 本地读数一致
+    const local = nowStringForOffset(undefined, fixed);
+    const p = (n: number) => String(n).padStart(2, '0');
+    expect(local).toBe(`${fixed.getFullYear()}-${p(fixed.getMonth() + 1)}-${p(fixed.getDate())}T${p(fixed.getHours())}:${p(fixed.getMinutes())}`);
   });
 });
 

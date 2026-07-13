@@ -197,6 +197,19 @@ try {
   if (!solar.yinshi) fail('校正后时柱应为丙寅');
   await page.screenshot({ path: shot('smoke-solar.png') });
 
+  // 7b4. 「此刻」按钮 + 三口径图例
+  await page.evaluate(() => {
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '此刻').click();
+  });
+  const nowBtn = await page.evaluate(() => {
+    const inputs = [...document.querySelectorAll('.paipan-grid input[type="datetime-local"]')];
+    return { query: inputs[1]?.value ?? '', legend: document.querySelectorAll('.legend-item').length };
+  });
+  console.log('now button:', JSON.stringify(nowBtn));
+  const thisYear = new Date().getFullYear();
+  if (!nowBtn.query.startsWith(String(thisYear))) fail(`此刻按钮未填当前时间：${nowBtn.query}`);
+  if (nowBtn.legend !== 3) fail('三口径图例应 3 项');
+
   // 7c. 盘面导出：先经 URL 深链回放初刻黄金盘（验证分享参数），再 CDP 拦截下载校验
   await page.goto(`${BASE}/paipan?g=%E7%94%B7&b=1924-06-15T16%3A00&q=2025-04-20T10%3A00`, { waitUntil: 'networkidle0', timeout: 60000 });
   await page.waitForFunction(

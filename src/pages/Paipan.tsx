@@ -9,7 +9,7 @@ import {
   scoreQuarterCandidates, type Chart,
 } from '../engine/engine';
 import { chartToMarkdown, chartToToon, exportFileName } from '../engine/export';
-import { applySolarCorrection } from '../engine/solar';
+import { applySolarCorrection, browserTimezone, nowStringForOffset } from '../engine/solar';
 import { PROVINCES, findLongitude } from '../engine/cities';
 
 type VerseMap = Map<number, Verse>;
@@ -84,6 +84,12 @@ export default function Paipan() {
   const [district, setDistrict] = useState('市区');
   const [manualLng, setManualLng] = useState(pLng ?? '');
   const [manualTz, setManualTz] = useState(pTz ?? '8');
+
+  // 盘面时区：城市模式恒北京时 UTC+8，手动模式取所填；不校正模式随浏览器墙钟
+  const browserTz = browserTimezone();
+  const chartTz = locMode === 'city' ? 8
+    : locMode === 'manual' && manualTz.trim() !== '' && Number.isFinite(Number(manualTz)) ? Number(manualTz)
+    : undefined;
 
   // 盘面完全由 URL 参数派生（分享/回放/冒烟一致）；lng/tz 存在时对出生与求测同施真太阳时
   const chart: Chart | undefined = useMemo(() => {
@@ -210,8 +216,17 @@ export default function Paipan() {
           </label>
           <label className="form-field">
             <span className="muted">求测时刻（日命/时运取此时辰）</span>
-            <input className="search-box" type="datetime-local" value={queryStr}
-              onChange={(e) => setQueryStr(e.target.value)} style={{ margin: 0 }} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input className="search-box" type="datetime-local" value={queryStr}
+                onChange={(e) => setQueryStr(e.target.value)} style={{ margin: 0, flex: 1, minWidth: 0 }} />
+              <button className="btn" style={{ flex: 'none', whiteSpace: 'nowrap' }}
+                title={chartTz === undefined
+                  ? `按浏览器时区（UTC${browserTz.offsetHours >= 0 ? '+' : ''}${browserTz.offsetHours} · ${browserTz.iana}）填入当前时间`
+                  : `按盘面时区 UTC${chartTz >= 0 ? '+' : ''}${chartTz} 换算填入当前时间（浏览器为 ${browserTz.iana}）`}
+                onClick={() => setQueryStr(nowStringForOffset(chartTz))}>
+                此刻
+              </button>
+            </div>
           </label>
           <label className="form-field">
             <span className="muted">&nbsp;</span>
@@ -283,6 +298,14 @@ export default function Paipan() {
           {locMode === 'off' && (
             <span className="muted" style={{ alignSelf: 'end', paddingBottom: 8, gridColumn: 'span 3' }}>
               铁板取数精确到刻（15 分钟），建议按出生地校正真太阳时；出生与求测时刻同址同校。
+              时刻按墙钟直读（浏览器时区 UTC{browserTz.offsetHours >= 0 ? '+' : ''}{browserTz.offsetHours} · {browserTz.iana}）。
+            </span>
+          )}
+          {locMode !== 'off' && chartTz !== undefined && chartTz !== browserTz.offsetHours && (
+            <span className="muted" style={{ gridColumn: '1 / -1' }}>
+              注意：盘面时区 UTC{chartTz >= 0 ? '+' : ''}{chartTz} 与浏览器时区
+              UTC{browserTz.offsetHours >= 0 ? '+' : ''}{browserTz.offsetHours}（{browserTz.iana}）不同——
+              时刻请按盘面时区墙钟填写，「此刻」按钮已自动换算。
             </span>
           )}
         </div>
@@ -443,15 +466,29 @@ export default function Paipan() {
               断语年龄注记与实岁吻合者以 <span className="verse-ages hit">✓ 绿色</span> 标示——年龄相验为考刻之凭
               {chart.currentAge >= 1 && chart.currentAge <= 100 && <>；当前虚岁（{chart.currentAge}）行以朱色衬底</>}。
             </p>
+            <div className="legend-grid">
+              <div className="legend-item">
+                <b>原条文</b>
+                <span>底本第一读数：以该岁「流年字母 × 岁数」直查 14-14，条文号 = 基数＋加数（公式列）。</span>
+              </div>
+              <div className="legend-item">
+                <b>校正后</b>
+                <span>订正读数：原行「校正数」按岁段换算（1–10 与 81–108 岁 +2 逢六减六，其余 +3 逢廿减廿，即校正列的 a→b），以新校正数×岁数反查 14-14。上游注：原断语不准时参考此读。</span>
+              </div>
+              <div className="legend-item">
+                <b>终局</b>
+                <span>铁板核心公式读数：原条文号 + 刻干数×48——同一底数按八刻错开 48 阶，考刻定刻后取此为终局断语。</span>
+              </div>
+            </div>
             <div className="dtable-wrap" style={{ maxHeight: '72dvh', overflowY: 'auto' }}>
               <table className="dtable">
                 <thead>
                   <tr>
                     <th>岁</th><th>年份</th><th>干支</th><th>四声</th><th>标记</th><th>字母</th>
                     <th>校正</th><th>公式</th>
-                    <th style={{ minWidth: 260 }}>原条文断语</th>
-                    <th style={{ minWidth: 260 }}>校正后断语</th>
-                    <th style={{ minWidth: 220 }}>终局（+{chart.keGanNum}×48）</th>
+                    <th style={{ minWidth: 260 }} title="字母×岁数直查 14-14：基数＋加数">原条文断语</th>
+                    <th style={{ minWidth: 260 }} title="校正数按岁段换算后反查 14-14（原断语不准时参考）">校正后断语</th>
+                    <th style={{ minWidth: 220 }} title="原条文号＋刻干数×48（铁板核心公式）">终局（+{chart.keGanNum}×48）</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -473,10 +510,7 @@ export default function Paipan() {
                 </tbody>
               </table>
             </div>
-            <p className="muted" style={{ marginTop: 10 }}>
-              「原条文」为字母×岁数查 14-14 所得；「校正后」按岁段校正数规则重查；
-              「终局」应用铁板核心公式（+刻干数×48）。条文号可点入单条视图。
-            </p>
+            <p className="muted" style={{ marginTop: 10 }}>三口径互为参照，条文号均可点入单条视图。</p>
           </section>
 
           <footer className="disclaimer">

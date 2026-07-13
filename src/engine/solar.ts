@@ -53,6 +53,26 @@ export function getTrueSolarOffset(
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /**
+ * 以指定 UTC 偏移（小时）表达「此刻」的墙钟时间（datetime-local 值）。
+ * 缺省用浏览器本地时区——排盘输入是墙钟时刻，浏览器在异地时区时，
+ * 「此刻」应按盘面时区（城市模式恒 UTC+8，手动模式取所填时区）换算填入。
+ */
+export function nowStringForOffset(offsetHours?: number, now: Date = new Date()): string {
+  const d = offsetHours === undefined
+    ? now
+    : new Date(now.getTime() + (offsetHours * 60 + now.getTimezoneOffset()) * 60000);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** 浏览器时区描述：UTC 偏移小时 + IANA 名（如 8 / Asia/Shanghai） */
+export function browserTimezone(): { offsetHours: number; iana: string } {
+  return {
+    offsetHours: -new Date().getTimezoneOffset() / 60,
+    iana: Intl.DateTimeFormat().resolvedOptions().timeZone ?? '未知',
+  };
+}
+
+/**
  * 施加真太阳时校正：返回校正后时刻分量与校正信息。
  * @param longitude 出生地经度（东经正、西经负）；undefined 则不校正
  * @param utcOffset 出生地时区 UTC 偏移小时（缺省 8 北京时 → 中央经线 120°E）
