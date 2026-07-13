@@ -77,6 +77,8 @@ export interface Chart {
   keGanNum: number;
   /** 八刻归并刻（≤4 → 初刻），卦象/流年字母查表用 */
   legacyMoment: string;
+  /** 刻别是否为手动定刻（quarterOverride） */
+  quarterManual: boolean;
   mainNum: number;
   /** 终局条文数 = 本命数 + 刻干数×48 */
   finalFortuneNum: number;
@@ -340,6 +342,7 @@ export function computeChart(input: ChartInput): Chart {
     gender, birth, query,
     congNum, tone, toneNum, dayLife, timeLuck,
     kaokeMoment, kaokeGroup, quarter: quarter.name, keGanNum, legacyMoment,
+    quarterManual: !!override,
     mainNum, finalFortuneNum, hexName, destiny,
     pnNum, pnRaw, wuShuJiGong, sanYuan,
     jiazeStart: hexName === '乾' ? 36 : hexName === '兑' ? 3 : 30,

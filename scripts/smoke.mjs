@@ -163,6 +163,54 @@ try {
   if (!override.url.includes('k=8')) fail('URL 未带 k=8（分享参数）');
   await page.screenshot({ path: shot('smoke-kaoke.png') });
 
+  // 7c. 盘面导出：先经 URL 深链回放初刻黄金盘（验证分享参数），再 CDP 拦截下载校验
+  await page.goto(`${BASE}/paipan?g=%E7%94%B7&b=1924-06-15T16%3A00&q=2025-04-20T10%3A00`, { waitUntil: 'networkidle0', timeout: 60000 });
+  await page.waitForFunction(
+    () => [...document.querySelectorAll('.stat-row .stat')].some((s) => s.textContent.includes('泰')),
+    { timeout: 30000 },
+  );
+  await page.waitForFunction(
+    () => [...document.querySelectorAll('.export-row .btn')].some((b) => b.textContent.includes('TOON') && !b.disabled),
+    { timeout: 30000 },
+  );
+  const cdp = await browser.target().createCDPSession();
+  await cdp.send('Browser.setDownloadBehavior', {
+    behavior: 'allow',
+    downloadPath: path.resolve(OUT),
+    eventsEnabled: true,
+  });
+  await page.evaluate(() => {
+    [...document.querySelectorAll('.export-row .btn')].find((b) => b.textContent.includes('下载 TOON')).click();
+  });
+  const { readdirSync, readFileSync } = await import('node:fs');
+  let toonFile = '';
+  for (let i = 0; i < 40 && !toonFile; i++) {
+    await new Promise((r) => setTimeout(r, 250));
+    toonFile = readdirSync(OUT).find((f) => f.endsWith('.toon') && !f.endsWith('.crdownload')) ?? '';
+  }
+  if (!toonFile) fail('TOON 下载未落盘');
+  else {
+    const toon = readFileSync(path.join(OUT, toonFile), 'utf8');
+    console.log('toon file:', toonFile, toon.length, 'chars');
+    if (!toon.includes('format: tbss-chart')) fail('TOON 缺 meta');
+    if (!toon.includes('liunian[100]{')) fail('TOON 缺流年表');
+    if (!toon.includes('吹落黄花弄笛声')) fail('TOON 缺断语文本');
+  }
+  await page.evaluate(() => {
+    [...document.querySelectorAll('.export-row .btn')].find((b) => b.textContent.includes('下载 MD')).click();
+  });
+  let mdFile = '';
+  for (let i = 0; i < 40 && !mdFile; i++) {
+    await new Promise((r) => setTimeout(r, 250));
+    mdFile = readdirSync(OUT).find((f) => f.endsWith('.md') && f.includes('铁板排盘')) ?? '';
+  }
+  if (!mdFile) fail('MD 下载未落盘');
+  else {
+    const md = readFileSync(path.join(OUT, mdFile), 'utf8');
+    console.log('md file:', mdFile, md.length, 'chars');
+    if (!md.includes('## 流年条文（1–100 岁）')) fail('MD 缺流年章节');
+  }
+
   // 8. 移动端首页快照
   await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
   await page.goto(`${BASE}/volumes`, { waitUntil: 'networkidle0', timeout: 60000 });

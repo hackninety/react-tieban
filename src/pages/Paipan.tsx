@@ -8,6 +8,7 @@ import {
   candidateFortunes, computeChart, computeQuarterCandidates, scoreQuarterCandidates,
   type Chart,
 } from '../engine/engine';
+import { chartToMarkdown, chartToToon, exportFileName } from '../engine/export';
 
 type VerseMap = Map<number, Verse>;
 
@@ -21,6 +22,15 @@ function nowLocal() {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function downloadText(name: string, content: string, mime: string) {
+  const url = URL.createObjectURL(new Blob([content], { type: `${mime};charset=utf-8` }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 /** 条文号 → 链接 + 断语；rowAge 命中年龄注记时高亮（考刻相验） */
@@ -122,6 +132,26 @@ export default function Paipan() {
   }, [candidates, factTokens, verses]);
   const bestScore = scores ? Math.max(...scores.map((s) => s.score)) : 0;
 
+  // 盘面导出：断语载荷就绪后可用
+  const [copied, setCopied] = useState(false);
+  const versesReady = verses.size > 0;
+  const resolver = (n: number) => verses.get(n);
+  const exportMd = () => {
+    if (!chart) return;
+    const now = nowLocal().replace('T', ' ');
+    downloadText(exportFileName(chart, 'md'), chartToMarkdown(chart, resolver, { now }), 'text/markdown');
+  };
+  const exportToon = () => {
+    if (!chart) return;
+    downloadText(exportFileName(chart, 'toon'), chartToToon(chart, resolver), 'text/plain');
+  };
+  const copyToon = async () => {
+    if (!chart) return;
+    await navigator.clipboard.writeText(chartToToon(chart, resolver));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  };
+
   const b = chart?.birth;
 
   return (
@@ -157,6 +187,13 @@ export default function Paipan() {
 
       {chart && b && (
         <>
+          <div className="export-row">
+            <span className="muted">导出盘面（含考刻对比与流年百岁断语）：</span>
+            <button className="btn" disabled={!versesReady} onClick={exportMd}>下载 MD</button>
+            <button className="btn" disabled={!versesReady} onClick={exportToon}>下载 TOON</button>
+            <button className="btn" disabled={!versesReady} onClick={copyToon}>{copied ? '已复制 ✓' : '复制 TOON'}</button>
+            <span className="muted">TOON 为 LLM 友好紧凑格式，可直接粘入对话做批断</span>
+          </div>
           <section>
             <h2>基础信息</h2>
             <div className="formula" style={{ borderLeftColor: 'var(--accent-soft)' }}>
