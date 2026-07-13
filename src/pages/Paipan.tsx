@@ -3,10 +3,10 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { DISCLAIMER, foldIncludes } from 'tbss-ts-lib';
 import { getVerses, type Verse } from 'tbss-ts-lib/verses';
 import { CORE_FORMULA } from 'tbss-ts-lib/tables';
-import { toBaziInfo } from '../engine/calendar';
+import { toBaziInfo, type DaYunPeriod } from '../engine/calendar';
 import {
-  candidateFortunes, computeChart, computeQuarterCandidates, scoreQuarterCandidates,
-  type Chart,
+  FOUR_PILLAR_PALACES, candidateFortunes, computeChart, computeQuarterCandidates,
+  scoreQuarterCandidates, type Chart,
 } from '../engine/engine';
 import { chartToMarkdown, chartToToon, exportFileName } from '../engine/export';
 
@@ -200,6 +200,13 @@ export default function Paipan() {
               性别 {chart.gender} · 农历 {b.lunarStr} · 出生八字 <b>{b.bazi.year} {b.bazi.month} {b.bazi.day} {b.bazi.time}</b>
               <br />
               求测 {chart.query.dateStr} · 八字 {chart.query.bazi.year} {chart.query.bazi.month} {chart.query.bazi.day} {chart.query.bazi.time}
+              <br />
+              <span className="muted">
+                六亲宫位：{FOUR_PILLAR_PALACES.map((p, i) => {
+                  const gz = [b.bazi.year, b.bazi.month, b.bazi.day, b.bazi.time][i];
+                  return `${p.pillar}${p.palace} ${gz}`;
+                }).join(' · ')}
+              </span>
             </div>
             <div className="stat-row" style={{ justifyContent: 'flex-start' }}>
               <div className="stat"><b>{chart.congNum}</b><span>先天命数</span></div>
@@ -214,6 +221,14 @@ export default function Paipan() {
               <div className="stat"><b>{chart.hexName}</b><span>十二辟卦</span></div>
               <div className="stat"><b>{chart.pnNum}</b><span>后天命数{chart.wuShuJiGong ? ` · 寄${chart.wuShuJiGong.gua}` : ''}</span></div>
               <div className="stat"><b>{chart.sanYuan}</b><span>三元</span></div>
+              <div className="stat"><b>{chart.tianDi.tian} / {chart.tianDi.di}</b><span>天数 / 地数</span></div>
+              <div className="stat">
+                <b>{chart.daYun.periods[1]?.startAge ?? '—'}岁</b>
+                <span>上运（{chart.daYun.direction}·{chart.daYun.qiyun.years}年{chart.daYun.qiyun.months}月）</span>
+              </div>
+              {chart.currentAge >= 1 && chart.currentAge <= 100 && (
+                <div className="stat"><b>{chart.currentAge}</b><span>当前虚岁</span></div>
+              )}
             </div>
             <div className="formula">
               {CORE_FORMULA}：{chart.mainNum} + {chart.keGanNum} × 48 = <b>{chart.finalFortuneNum}</b>
@@ -316,13 +331,18 @@ export default function Paipan() {
           </section>
 
           <section>
-            <h2>流年条文（1–100 岁）</h2>
-            <p className="muted">断语年龄注记与实岁吻合者以 <span className="verse-ages hit">✓ 绿色</span> 标示——年龄相验为考刻之凭。</p>
+            <h2>流年条文（1–100 岁 · 按大限分段）</h2>
+            <p className="muted">
+              断语年龄注记与实岁吻合者以 <span className="verse-ages hit">✓ 绿色</span> 标示——年龄相验为考刻之凭；
+              {chart.currentAge >= 1 && chart.currentAge <= 100 && <>当前虚岁（{chart.currentAge}）行以朱色衬底；</>}
+              大限为子平起运口径（{chart.daYun.direction}，{chart.daYun.qiyun.years}年{chart.daYun.qiyun.months}月{chart.daYun.qiyun.days}天上运），
+              铁板原文无大运取数，仅作分限参考。
+            </p>
             <div className="dtable-wrap" style={{ maxHeight: '72dvh', overflowY: 'auto' }}>
               <table className="dtable">
                 <thead>
                   <tr>
-                    <th>岁</th><th>干支</th><th>四声</th><th>标记</th><th>字母</th>
+                    <th>岁</th><th>年份</th><th>干支</th><th>四声</th><th>标记</th><th>字母</th>
                     <th>校正</th><th>公式</th>
                     <th style={{ minWidth: 260 }}>原条文断语</th>
                     <th style={{ minWidth: 260 }}>校正后断语</th>
@@ -330,20 +350,38 @@ export default function Paipan() {
                   </tr>
                 </thead>
                 <tbody>
-                  {chart.liunian.slice(0, 100).map((r) => (
-                    <tr key={r.age}>
-                      <td>{r.age}</td>
-                      <td>{r.ganzhi}</td>
-                      <td>{r.sound}</td>
-                      <td>{r.marker}</td>
-                      <td>{r.letter === '?' ? <span className="muted">—</span> : r.letter}</td>
-                      <td>{r.correction ? `${r.correction}→${r.correctedCorrection}` : <span className="muted">—</span>}</td>
-                      <td>{r.formula || <span className="muted">—</span>}</td>
-                      <td style={{ whiteSpace: 'normal' }}><VerseCell n={r.fortune} verses={verses} rowAge={r.age} /></td>
-                      <td style={{ whiteSpace: 'normal' }}><VerseCell n={r.correctedFortune} verses={verses} rowAge={r.age} /></td>
-                      <td style={{ whiteSpace: 'normal' }}><VerseCell n={r.tiebanFortune} verses={verses} rowAge={r.age} /></td>
-                    </tr>
-                  ))}
+                  {chart.liunian.slice(0, 100).flatMap((r) => {
+                    const rows = [];
+                    const period: DaYunPeriod | undefined = chart.daYun.periods.find((p) => r.age >= p.startAge && r.age <= p.endAge);
+                    if (period && r.age === Math.max(period.startAge, 1)) {
+                      const endAge = Math.min(period.endAge, 100);
+                      const endYear = period.startYear + (endAge - period.startAge);
+                      rows.push(
+                        <tr key={`dy-${period.index}`} className="dayun-row">
+                          <td colSpan={11}>
+                            {period.ganzhi ? `大限 ${period.ganzhi}` : '童限'}
+                            （{Math.max(period.startAge, 1)}–{endAge} 岁 · {period.startYear}–{endYear}）
+                          </td>
+                        </tr>,
+                      );
+                    }
+                    rows.push(
+                      <tr key={r.age} className={r.age === chart.currentAge ? 'row-current' : ''}>
+                        <td>{r.age}</td>
+                        <td className="muted">{r.year}</td>
+                        <td>{r.ganzhi}</td>
+                        <td>{r.sound}</td>
+                        <td>{r.marker}</td>
+                        <td>{r.letter === '?' ? <span className="muted">—</span> : r.letter}</td>
+                        <td>{r.correction ? `${r.correction}→${r.correctedCorrection}` : <span className="muted">—</span>}</td>
+                        <td>{r.formula || <span className="muted">—</span>}</td>
+                        <td style={{ whiteSpace: 'normal' }}><VerseCell n={r.fortune} verses={verses} rowAge={r.age} /></td>
+                        <td style={{ whiteSpace: 'normal' }}><VerseCell n={r.correctedFortune} verses={verses} rowAge={r.age} /></td>
+                        <td style={{ whiteSpace: 'normal' }}><VerseCell n={r.tiebanFortune} verses={verses} rowAge={r.age} /></td>
+                      </tr>,
+                    );
+                    return rows;
+                  })}
                 </tbody>
               </table>
             </div>

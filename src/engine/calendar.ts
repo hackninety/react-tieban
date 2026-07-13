@@ -22,6 +22,54 @@ export interface BaziInfo {
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
+/** 大限（十年大运）单段；index 0 为童限（起运前，无干支） */
+export interface DaYunPeriod {
+  index: number;
+  /** 干支；童限为空串 */
+  ganzhi: string;
+  /** 虚岁起讫（含） */
+  startAge: number;
+  endAge: number;
+  /** 公历年起讫（含） */
+  startYear: number;
+  endYear: number;
+}
+
+export interface DaYunInfo {
+  /** 起运时长（出生后 X 年 Y 月 Z 天）与上运公历日 */
+  qiyun: { years: number; months: number; days: number; solar: string };
+  direction: '顺行' | '逆行';
+  /** 童限 + 十年一柱，覆盖至 108+ 岁 */
+  periods: DaYunPeriod[];
+}
+
+/**
+ * 大限（子平起运口径）：阳男阴女顺排/阴男阳女逆排自月柱，节气距离三日折一年。
+ * 铁板神数原文与上游实现均无大运取数规则，此层仅作流年分限参考（lunar-typescript 计算）。
+ */
+export function computeDaYun(birth: BaziInfo, gender: '男' | '女'): DaYunInfo {
+  const m = birth.dateStr.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/)!;
+  const solar = Solar.fromYmdHms(+m[1], +m[2], +m[3], +m[4], +m[5], 0);
+  const yun = solar.getLunar().getEightChar().getYun(gender === '男' ? 1 : 0);
+  return {
+    qiyun: {
+      years: yun.getStartYear(),
+      months: yun.getStartMonth(),
+      days: yun.getStartDay(),
+      solar: yun.getStartSolar().toYmd(),
+    },
+    direction: yun.isForward() ? '顺行' : '逆行',
+    periods: yun.getDaYun(12).map((d) => ({
+      index: d.getIndex(),
+      ganzhi: d.getGanZhi(),
+      startAge: d.getStartAge(),
+      endAge: d.getEndAge(),
+      startYear: d.getStartYear(),
+      endYear: d.getEndYear(),
+    })),
+  };
+}
+
 /** 公历时刻 → 八字信息（hour≥23 按次日早子时） */
 export function toBaziInfo(d: { year: number; month: number; day: number; hour: number; minute: number }): BaziInfo {
   let { year, month, day, hour, minute } = d;

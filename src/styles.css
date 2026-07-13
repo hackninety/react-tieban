@@ -423,6 +423,13 @@ select:focus { outline: none; border-color: var(--accent); }
 .export-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
 .export-row .btn { border-width: 1px; }
 .export-row .btn:disabled { opacity: 0.45; cursor: default; }
+.dtable tr.dayun-row td {
+  background: var(--paper-sunk);
+  color: var(--accent); font-weight: 600; letter-spacing: 0.06em;
+  border-left: 3px solid var(--accent-soft);
+}
+.dtable tr.row-current td { background: color-mix(in srgb, var(--seal) 10%, transparent); }
+.dtable tr.row-current td:first-child { border-left: 3px solid var(--seal); font-weight: 700; }
 .pager { display: flex; justify-content: space-between; align-items: center; margin: 18px 0 6px; gap: 20px; }
 .pager .btn[aria-disabled="true"] { opacity: 0.4; pointer-events: none; }
 

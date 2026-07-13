@@ -199,6 +199,42 @@ describe('考刻对比（八刻候选）', () => {
   });
 });
 
+describe('大限与流年细节', () => {
+  const c = goldenChart();
+
+  it('大限（子平顺行）：童限 1–7，首运辛未 8–17 起 1931', () => {
+    expect(c.daYun.direction).toBe('顺行');
+    expect(c.daYun.qiyun).toMatchObject({ years: 7, months: 4, days: 10, solar: '1931-10-25' });
+    const [tong, first] = c.daYun.periods;
+    expect(tong).toMatchObject({ index: 0, ganzhi: '', startAge: 1, endAge: 7, startYear: 1924 });
+    expect(first).toMatchObject({ index: 1, ganzhi: '辛未', startAge: 8, endAge: 17, startYear: 1931 });
+    expect(c.daYun.periods[2].ganzhi).toBe('壬申');
+    // 覆盖至 108 岁
+    expect(c.daYun.periods[c.daYun.periods.length - 1].endAge).toBeGreaterThanOrEqual(108);
+  });
+
+  it('女命逆行首运己巳', () => {
+    const f = computeChart({
+      gender: '女',
+      birth: toBaziInfo({ year: 1924, month: 6, day: 15, hour: 16, minute: 0 }),
+      query: toBaziInfo({ year: 2025, month: 4, day: 20, hour: 10, minute: 0 }),
+    });
+    expect(f.daYun.direction).toBe('逆行');
+    expect(f.daYun.periods[1].ganzhi).toBe('己巳');
+    expect(f.daYun.periods[1].startAge).toBe(4);
+  });
+
+  it('天地数：甲子庚午乙丑甲申 → 奇和 43 偶和 24 → 天 8 地 4', () => {
+    expect(c.tianDi).toEqual({ oddSum: 43, evenSum: 24, tian: 8, di: 4 });
+  });
+
+  it('流年公历年份与当前虚岁', () => {
+    expect(c.liunian[0].year).toBe(1924);
+    expect(c.liunian[99].year).toBe(2023);
+    expect(c.currentAge).toBe(102); // 求测 2025
+  });
+});
+
 describe('规则函数', () => {
   it('校正数岁段规则', () => {
     expect(correctCorrection(3, 1)).toBe(5);   // 1–10 岁 +2

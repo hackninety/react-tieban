@@ -133,6 +133,14 @@ try {
   });
   console.log('liunian age1:', liunianRow1.slice(0, 80));
   if (!liunianRow1.includes('2408')) fail('1 岁原条文非 2408');
+  if (!liunianRow1.includes('1924')) fail('流年缺公历年份列');
+  const daxian = await page.evaluate(() => ({
+    tong: [...document.querySelectorAll('.dayun-row')].some((r) => r.textContent.includes('童限（1–7 岁')),
+    first: [...document.querySelectorAll('.dayun-row')].some((r) => r.textContent.includes('大限 辛未（8–17 岁')),
+    count: document.querySelectorAll('.dayun-row').length,
+  }));
+  console.log('daxian rows:', JSON.stringify(daxian));
+  if (!daxian.tong || !daxian.first) fail('大限分段表头缺失');
   await page.screenshot({ path: shot('smoke-paipan.png') });
 
   // 7b. 考刻对比：八刻候选 + 采用正刻（k=8）重排全盘（泰 → 否）
@@ -195,6 +203,7 @@ try {
     if (!toon.includes('format: tbss-chart')) fail('TOON 缺 meta');
     if (!toon.includes('liunian[100]{')) fail('TOON 缺流年表');
     if (!toon.includes('吹落黄花弄笛声')) fail('TOON 缺断语文本');
+    if (!toon.includes('daYun[')) fail('TOON 缺大限表');
   }
   await page.evaluate(() => {
     [...document.querySelectorAll('.export-row .btn')].find((b) => b.textContent.includes('下载 MD')).click();

@@ -33,13 +33,19 @@ describe('Markdown 导出', () => {
     expect(md).toContain('基数 430，序数 470');
     expect(md).toContain('430+470+8860=9760');
     expect(md).toContain('| 才能前程 | 底本为 × | — |');
-    // 流年 1 岁行三口径断语
-    const row1 = md.split('\n').find((l) => l.startsWith('| 1 | 甲子 |'))!;
+    // 大限与天地数细节
+    expect(md).toContain('## 大限（子平起运参考）');
+    expect(md).toContain('| 童限 | — | 1–7 | 1924–1930 |');
+    expect(md).toContain('| 第1运 | 辛未 | 8–17 | 1931–1940 |');
+    expect(md).toContain('- 天地数：天 8 · 地 4（太玄奇和 43 / 偶和 24）');
+    expect(md).toContain('- 六亲宫位：年柱父母宫 甲子');
+    // 流年 1 岁行三口径断语（含年份列）
+    const row1 = md.split('\n').find((l) => l.startsWith('| 1 | 1924 | 甲子 |'))!;
     expect(row1).toContain('2408 吹落黄花弄笛声，愁人听后思难禁。（1岁）');
     expect(row1).toContain('6539');
     expect(row1).toContain('2456');
     // 空白行占位与口径脚注
-    const row88 = md.split('\n').find((l) => l.startsWith('| 88 | 辛卯 |'))!;
+    const row88 = md.split('\n').find((l) => l.startsWith('| 88 | 2011 | 辛卯 |'))!;
     expect(row88).toContain('| — | — | — | — | — |');
     expect(md).toContain('## 口径与出处');
     expect(md).toContain('不构成任何命运预测依据');
@@ -50,21 +56,29 @@ describe('TOON 导出', () => {
   it('结构完整且可解码往返，比等价 JSON 更省字符', () => {
     const toon = chartToToon(chart, resolve);
     expect(toon).toContain('format: tbss-chart');
-    expect(toon).toContain('liunian[100]{age,ganzhi,sound,marker,letter,corr,corrected,formula,n,text,ages,corrN,corrText,corrAges,tbN,tbText,tbAges}:');
+    expect(toon).toContain('liunian[100]{age,year,ganzhi,sound,marker,letter,corr,corrected,formula,n,text,ages,corrN,corrText,corrAges,tbN,tbText,tbAges}:');
     expect(toon).toContain('candidates[8]{quarter,keGan,moment,hex,finalN,finalText}:');
+    expect(toon).toContain('daYun[');
+    expect(toon).toContain('qiyun: 7年4月10天（1931-10-25，顺行）');
 
     const back = decode(toon) as Record<string, never> & {
-      core: { mainNum: number; hexName: string; finalFortuneNum: number };
+      core: { mainNum: number; hexName: string; finalFortuneNum: number; tianShu: number; diShu: number; currentAge: number };
       destiny: { base: number; rows: { n: number; text: string }[] };
-      liunian: { age: number; n: number; text: string; ages: string }[];
+      daYun: { idx: number; ganzhi: string; startAge: number }[];
+      liunian: { age: number; year: number; n: number; text: string; ages: string }[];
     };
     expect(back.core.mainNum).toBe(344);
     expect(back.core.hexName).toBe('泰');
     expect(back.core.finalFortuneNum).toBe(392);
+    expect(back.core.tianShu).toBe(8);
+    expect(back.core.diShu).toBe(4);
+    expect(back.core.currentAge).toBe(102);
     expect(back.destiny.base).toBe(430);
     expect(back.destiny.rows.some((r) => r.n === 9760)).toBe(true);
+    expect(back.daYun[0]).toMatchObject({ idx: 0, ganzhi: '-', startAge: 1 });
+    expect(back.daYun[1]).toMatchObject({ idx: 1, ganzhi: '辛未', startAge: 8 });
     expect(back.liunian.length).toBe(100);
-    expect(back.liunian[0]).toMatchObject({ age: 1, n: 2408, ages: '1' });
+    expect(back.liunian[0]).toMatchObject({ age: 1, year: 1924, n: 2408, ages: '1' });
     expect(back.liunian[0].text).toContain('吹落黄花');
 
     const json = JSON.stringify(decode(toon));

@@ -14,8 +14,8 @@
  *   关键词匹配评分（透明启发式，非上游残缺实现之移植）。
  * 各派铁板神数口诀不一，本引擎忠实于所据开源实现与数据，仅供研究。
  */
-import { EIGHT_QUARTERS, quarterOfMinute } from 'tbss-ts-lib/tables';
-import type { BaziInfo } from './calendar';
+import { EIGHT_QUARTERS, quarterOfMinute, taixuanValue } from 'tbss-ts-lib/tables';
+import { computeDaYun, type BaziInfo, type DaYunInfo } from './calendar';
 import { getMaps, HOU_TIAN_GUA_NUM, NAYIN_WUXING } from './data';
 
 const STEMS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
@@ -29,8 +29,18 @@ export interface ChartInput {
   quarterOverride?: number;
 }
 
+/** 四柱六亲宫位（上游 SIX_QIN_PILLARS） */
+export const FOUR_PILLAR_PALACES: readonly { pillar: string; palace: string }[] = [
+  { pillar: '年柱', palace: '父母宫' },
+  { pillar: '月柱', palace: '兄弟宫' },
+  { pillar: '日柱', palace: '夫妻宫' },
+  { pillar: '时柱', palace: '子女宫' },
+];
+
 export interface LiunianRow {
   age: number;
+  /** 对应公历年份（虚岁 1 = 出生年） */
+  year: number;
   ganzhi: string;
   sound: string;
   marker: string;
@@ -93,6 +103,12 @@ export interface Chart {
   sanYuan: string;
   /** 八卦加则起始数与口诀 */
   jiazeStart: number;
+  /** 天地数（生辰八字太玄数奇偶分和，天基 25 地基 30 取余；上游常量层，展示参考） */
+  tianDi: { oddSum: number; evenSum: number; tian: number; di: number };
+  /** 大限（子平起运口径，仅作流年分限参考） */
+  daYun: DaYunInfo;
+  /** 求测时刻的虚岁（求测年 − 出生年 + 1；<1 记 0） */
+  currentAge: number;
   liunian: LiunianRow[];
 }
 
@@ -290,6 +306,26 @@ export function computeChart(input: ChartInput): Chart {
     wuShuJiGong = { gua, basis: `${sanYuan} ${gender} ${isYang ? '阳' : '阴'}` };
   }
 
+  // 天地数：八字八字符太玄数按奇偶分和（奇→天，偶→地），天基 25 地基 30 取余（上游公式）
+  const chars = [...`${birth.bazi.year}${birth.bazi.month}${birth.bazi.day}${birth.bazi.time}`];
+  let oddSum = 0;
+  let evenSum = 0;
+  for (const ch of chars) {
+    const v = taixuanValue(ch) ?? 0;
+    if (v % 2 === 1) oddSum += v;
+    else evenSum += v;
+  }
+  const tianDi = {
+    oddSum, evenSum,
+    tian: (oddSum > 25 ? oddSum - 25 : oddSum) % 10,
+    di: (evenSum > 30 ? evenSum - 30 : evenSum) % 10,
+  };
+
+  // 大限（子平起运，分限参考）与当前虚岁
+  const birthYear = Number(birth.dateStr.slice(0, 4));
+  const daYun = computeDaYun(birth, gender);
+  const currentAge = Math.max(0, Number(query.dateStr.slice(0, 4)) - birthYear + 1);
+
   // Step 8 流年（1–108 岁）
   const start = m.liunianStart.get(`${branchGroup(yZhi)}|${gender}`) ?? 0;
   let finalSeq: string[] | undefined;
@@ -330,7 +366,7 @@ export function computeChart(input: ChartInput): Chart {
     const jiaze = correctedFortune > 0 ? applyJiaze(correctedFortune, hexName) : undefined;
 
     liunian.push({
-      age, ganzhi, sound, marker, letter,
+      age, year: birthYear + age - 1, ganzhi, sound, marker, letter,
       correction, correctedCorrection, formula,
       fortune, correctedFortune, tiebanFortune,
       jiazeResult: jiaze?.result ?? -1,
@@ -346,6 +382,7 @@ export function computeChart(input: ChartInput): Chart {
     mainNum, finalFortuneNum, hexName, destiny,
     pnNum, pnRaw, wuShuJiGong, sanYuan,
     jiazeStart: hexName === '乾' ? 36 : hexName === '兑' ? 3 : 30,
+    tianDi, daYun, currentAge,
     liunian,
   };
 }
