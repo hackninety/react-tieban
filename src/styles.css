@@ -418,6 +418,8 @@ select:focus { outline: none; border-color: var(--accent); }
 .verse-n:hover { text-decoration: underline; }
 .verse-text { flex: 1; min-width: 0; }
 .verse-ages { flex: none; color: var(--warn); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.verse-ages.hit { color: var(--ok); font-weight: 700; background: color-mix(in srgb, var(--ok) 12%, transparent); border-radius: 5px; padding: 0 4px; }
+.dtable tr.row-active td { background: var(--accent-wash); }
 .pager { display: flex; justify-content: space-between; align-items: center; margin: 18px 0 6px; gap: 20px; }
 .pager .btn[aria-disabled="true"] { opacity: 0.4; pointer-events: none; }
 

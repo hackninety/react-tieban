@@ -4,11 +4,15 @@
  * 纯同步函数：查表走 tbss-ts-lib/tables（src/engine/data.ts），断语文本由调用方
  * 用 tbss-ts-lib/verses 批量补齐（enrich 于页面层）。
  *
- * 与上游的两处明示取齐（详见 README「排盘」节）：
+ * 与上游的明示取齐（详见 README「排盘」节）：
  * - 八刻计分沿用上游「偶数小时为时辰首小时」的约定（黄金例 16:00 → 初刻）；
- * - 卦象/流年字母查表用八刻归并刻（刻干数≤4 → 初刻，否则正刻），本命条文（14-10）
- *   沿用 14-7 考刻规则定初/正刻 —— 两处各随其上游实现。
- * 各派铁板神数口诀不一，本引擎忠实于所据开源实现，仅供研究。
+ * - 卦象（14-9）、本命条文（14-10）、流年字母（14-13）统一按八刻归并刻
+ *   （刻干数≤4 → 初刻，否则正刻）查表 —— 上游 v1 全用 14-7 刻、v2 卦象改八刻而
+ *   本命条文未随（混键），本引擎取归并刻一致口径；14-7 考刻仍完整计算，作先验参考。
+ * - 考刻本质是「刻别不确定，以事实反推」：quarterOverride 支持手动定刻重排全盘，
+ *   computeQuarterCandidates + scoreQuarterCandidates 给出八刻对比与已知六亲信息的
+ *   关键词匹配评分（透明启发式，非上游残缺实现之移植）。
+ * 各派铁板神数口诀不一，本引擎忠实于所据开源实现与数据，仅供研究。
  */
 import { EIGHT_QUARTERS, quarterOfMinute } from 'tbss-ts-lib/tables';
 import type { BaziInfo } from './calendar';
@@ -21,6 +25,8 @@ export interface ChartInput {
   gender: '男' | '女';
   birth: BaziInfo;
   query: BaziInfo;
+  /** 手动定刻（1–8 刻干数）：考刻定案后覆盖出生分钟推得的八刻 */
+  quarterOverride?: number;
 }
 
 export interface LiunianRow {
@@ -143,6 +149,84 @@ export function applyJiaze(num: number, hexName: string): { result: number; stop
   return { result: cur, stop: false, iterations: 10 };
 }
 
+/** 本命条文查表（14-10：卦 × 归并刻 × 先天命数） */
+function destinyFor(hexName: string, legacyMoment: string, congNum: number): DestinyVerses | undefined {
+  const m = getMaps();
+  const momentKey = legacyMoment === '初刻' ? 'Initial' : 'Main';
+  const pack = m.destiny.get(`${hexName}|${momentKey}|${congNum}`);
+  return pack && {
+    base: pack.base,
+    seq: pack.seq,
+    categories: (Object.keys(pack.offsets) as (keyof typeof pack.offsets)[]).map((category) => ({
+      category,
+      entries: pack.offsets[category].map((offset) => ({ offset, fortune: pack.base + pack.seq + offset })),
+    })),
+  };
+}
+
+/** 考刻候选：八刻各一套（归并刻 → 卦 → 本命条文；终局条文按 48 阶差） */
+export interface QuarterCandidate {
+  quarter: string;
+  keGanNum: number;
+  legacyMoment: string;
+  hexName: string;
+  finalFortuneNum: number;
+  destiny?: DestinyVerses;
+}
+
+export function computeQuarterCandidates(chart: Pick<Chart, 'mainNum' | 'congNum'>): QuarterCandidate[] {
+  const m = getMaps();
+  return EIGHT_QUARTERS.map((q) => {
+    const legacyMoment = q.value <= 4 ? '初刻' : '正刻';
+    const hexName = m.hexDetail.get(`${legacyMoment}|${chart.mainNum}`) ?? m.hexSimple.get(chart.mainNum) ?? '未知';
+    return {
+      quarter: q.name,
+      keGanNum: q.value,
+      legacyMoment,
+      hexName,
+      finalFortuneNum: chart.mainNum + q.value * 48,
+      destiny: destinyFor(hexName, legacyMoment, chart.congNum),
+    };
+  });
+}
+
+/** 单刻候选的可验文本池（终局条文 + 本命条文各类目） */
+export function candidateFortunes(c: QuarterCandidate): { n: number; source: string }[] {
+  const out: { n: number; source: string }[] = [{ n: c.finalFortuneNum, source: '终局条文' }];
+  for (const cat of c.destiny?.categories ?? []) {
+    for (const e of cat.entries) out.push({ n: e.fortune, source: cat.category });
+  }
+  return out;
+}
+
+export interface CandidateHit { keyword: string; n: number; source: string; text: string }
+export interface CandidateScore { quarter: string; keGanNum: number; score: number; hits: CandidateHit[] }
+
+/**
+ * 六亲考刻评分：已知事实关键词（如「属马」「兄弟二人」「夫做官」）对各刻候选的
+ * 可验文本池做繁简折叠包含匹配。透明启发式：每关键词在该刻命中一次计 1 分，
+ * 命中明细全量返回供人工复核 —— 考刻定案仍须由人判断。
+ */
+export function scoreQuarterCandidates(
+  candidates: QuarterCandidate[],
+  keywords: string[],
+  verseText: (n: number) => string | undefined,
+  foldIncludes: (haystack: string, needle: string) => boolean,
+): CandidateScore[] {
+  const kws = keywords.map((k) => k.trim()).filter(Boolean);
+  return candidates.map((c) => {
+    const pool = candidateFortunes(c)
+      .map((f) => ({ ...f, text: verseText(f.n) }))
+      .filter((f): f is { n: number; source: string; text: string } => !!f.text);
+    const hits: CandidateHit[] = [];
+    for (const kw of kws) {
+      const hit = pool.find((f) => foldIncludes(f.text, kw));
+      if (hit) hits.push({ keyword: kw, n: hit.n, source: hit.source, text: hit.text });
+    }
+    return { quarter: c.quarter, keGanNum: c.keGanNum, score: hits.length, hits };
+  });
+}
+
 /** 主推演（纯同步，仅产出数字与查表结果；断语文本另行补齐） */
 export function computeChart(input: ChartInput): Chart {
   const m = getMaps();
@@ -176,7 +260,10 @@ export function computeChart(input: ChartInput): Chart {
   const kaokeGroup = (gender === '男' && isYang) || (gender === '女' && !isYang) ? '阳男阴女' : '阴男阳女';
   const cond = sumVal > 6 ? '>6' : '<=6';
   const kaokeMoment = m.kaokeRules.find((r) => r.group === kaokeGroup && r.cond === cond)?.moment ?? '正刻';
-  const quarter = quarterOfMinute(birth.minutesInHour) ?? EIGHT_QUARTERS[EIGHT_QUARTERS.length - 1];
+  const override = input.quarterOverride;
+  const quarter = (override && EIGHT_QUARTERS[override - 1])
+    || quarterOfMinute(birth.minutesInHour)
+    || EIGHT_QUARTERS[EIGHT_QUARTERS.length - 1];
   const keGanNum = quarter.value;
   const legacyMoment = keGanNum <= 4 ? '初刻' : '正刻';
 
@@ -186,20 +273,9 @@ export function computeChart(input: ChartInput): Chart {
   const mainNum = fact * 30 + birth.lunarDay;
   const finalFortuneNum = mainNum + keGanNum * 48;
 
-  // Step 6 卦名（14-9：归并刻 → 简表兜底）
+  // Step 6 卦名与本命条文（14-9/14-10：统一按归并刻）
   const hexName = m.hexDetail.get(`${legacyMoment}|${mainNum}`) ?? m.hexSimple.get(mainNum) ?? '未知';
-
-  // 本命条文（14-10：卦 × 14-7 刻 × 先天命数）
-  const momentKey = kaokeMoment === '初刻' ? 'Initial' : 'Main';
-  const pack = m.destiny.get(`${hexName}|${momentKey}|${congNum}`);
-  const destiny: DestinyVerses | undefined = pack && {
-    base: pack.base,
-    seq: pack.seq,
-    categories: (Object.keys(pack.offsets) as (keyof typeof pack.offsets)[]).map((category) => ({
-      category,
-      entries: pack.offsets[category].map((offset) => ({ offset, fortune: pack.base + pack.seq + offset })),
-    })),
-  };
+  const destiny = destinyFor(hexName, legacyMoment, congNum);
 
   // Step 7 后天命数（+五数寄宫）
   const pnRaw = (congNum + mainNum) % 8 === 0 ? 8 : (congNum + mainNum) % 8;

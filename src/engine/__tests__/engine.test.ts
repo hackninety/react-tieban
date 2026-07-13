@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { foldIncludes } from 'tbss-ts-lib';
 import { toBaziInfo } from '../calendar';
-import { applyJiaze, computeChart, correctCorrection, sanYuanOf } from '../engine';
+import {
+  applyJiaze, candidateFortunes, computeChart, computeQuarterCandidates,
+  correctCorrection, sanYuanOf, scoreQuarterCandidates,
+} from '../engine';
 
 /**
  * 黄金向量：xaminxan/tiebanshenshu README 排盘示例
@@ -121,6 +125,77 @@ describe('流年（黄金向量 vs 上游 README 表）', () => {
     expect(c.liunian.length).toBe(108);
     expect(c.liunian.every((r) => r.sound !== '?')).toBe(true);
     expect(c.liunian.every((r) => r.marker !== '?')).toBe(true);
+  });
+});
+
+describe('考刻对比（八刻候选）', () => {
+  const c = goldenChart();
+  const cands = computeQuarterCandidates(c);
+
+  it('八刻各一套：初刻组泰卦，正刻组否卦，终局 48 阶差', () => {
+    expect(cands.length).toBe(8);
+    expect(cands.map((x) => x.finalFortuneNum)).toEqual([392, 440, 488, 536, 584, 632, 680, 728]);
+    for (const x of cands.slice(0, 4)) {
+      expect(x.legacyMoment).toBe('初刻');
+      expect(x.hexName).toBe('泰');
+      expect(x.destiny!.seq).toBe(470); // 泰 × 初刻 × 先天 11
+    }
+    for (const x of cands.slice(4)) {
+      expect(x.legacyMoment).toBe('正刻');
+      expect(x.hexName).toBe('否'); // 14-9 正刻 344 → 否
+      expect(x.destiny!.base).toBe(490);
+      expect(x.destiny!.seq).toBe(470); // 否 × 正刻 × 先天 11
+    }
+    // 同一先天命数下泰初/否正给出相同的性格条文号（底本互证）
+    const by = (i: number) => Object.fromEntries(cands[i].destiny!.categories.map((x) => [x.category, x.entries.map((e) => e.fortune)]));
+    expect(by(0)['性格']).toEqual([9760, 1353]);
+    expect(by(7)['性格']).toEqual([1353, 9760]);
+  });
+
+  it('候选文本池：终局 + 本命各类目', () => {
+    const pool = candidateFortunes(cands[0]);
+    expect(pool[0]).toEqual({ n: 392, source: '终局条文' });
+    expect(pool.some((f) => f.n === 9760 && f.source === '性格')).toBe(true);
+    expect(pool.some((f) => f.n === 10606 && f.source === '财运')).toBe(true);
+  });
+
+  it('六亲评分：关键词只在命中刻计分，明细可复核', () => {
+    const texts = new Map<number, string>([
+      [392, '父命属马，早岁刑伤。'],
+      [728, '兄弟二人，同气连枝。'],
+      [9760, '水火性情发刚焚。'],
+    ]);
+    const scores = scoreQuarterCandidates(cands, ['属马', '兄弟二人', '无此词'], (n) => texts.get(n), foldIncludes);
+    const s1 = scores.find((s) => s.keGanNum === 1)!;
+    const s8 = scores.find((s) => s.keGanNum === 8)!;
+    expect(s1.score).toBe(1);
+    expect(s1.hits[0]).toMatchObject({ keyword: '属马', n: 392, source: '终局条文' });
+    expect(s8.score).toBe(1);
+    expect(s8.hits[0]).toMatchObject({ keyword: '兄弟二人', n: 728 });
+    expect(scores.find((s) => s.keGanNum === 2)!.score).toBe(0); // 440 无文本
+    // 繁体输入命中
+    const trad = scoreQuarterCandidates(cands, ['兄弟二人'.replace('兄弟', '兄弟')], (n) => texts.get(n), foldIncludes);
+    expect(trad.find((s) => s.keGanNum === 8)!.score).toBe(1);
+  });
+
+  it('手动定刻重排全盘：override 8 → 正刻系（否卦、终局 728、流年字母改走正刻）', () => {
+    const o = computeChart({
+      gender: '男',
+      birth: toBaziInfo({ year: 1924, month: 6, day: 15, hour: 16, minute: 0 }),
+      query: toBaziInfo({ year: 2025, month: 4, day: 20, hour: 10, minute: 0 }),
+      quarterOverride: 8,
+    });
+    expect(o.quarter).toBe('正刻');
+    expect(o.keGanNum).toBe(8);
+    expect(o.legacyMoment).toBe('正刻');
+    expect(o.hexName).toBe('否');
+    expect(o.finalFortuneNum).toBe(728);
+    expect(o.destiny!.base).toBe(490);
+    expect(o.kaokeMoment).toBe('初刻'); // 14-7 先验不受覆盖影响
+    expect(o.mainNum).toBe(344);       // 本命数不随刻变
+    // 流年字母按正刻查 14-13，与初刻黄金行（召）不同
+    expect(o.liunian[0].letter).not.toBe('?');
+    expect(o.liunian[0].letter).not.toBe('召');
   });
 });
 

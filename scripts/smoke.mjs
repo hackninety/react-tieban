@@ -135,6 +135,34 @@ try {
   if (!liunianRow1.includes('2408')) fail('1 岁原条文非 2408');
   await page.screenshot({ path: shot('smoke-paipan.png') });
 
+  // 7b. 考刻对比：八刻候选 + 采用正刻（k=8）重排全盘（泰 → 否）
+  const kaoke = await page.evaluate(() => {
+    const tables = [...document.querySelectorAll('.dtable')];
+    const t = tables.find((x) => x.textContent.includes('刻干数') && x.textContent.includes('归并'));
+    return t ? { rows: t.querySelectorAll('tbody tr').length, text: t.textContent.slice(0, 60) } : null;
+  });
+  console.log('kaoke candidates:', JSON.stringify(kaoke));
+  if (!kaoke || kaoke.rows !== 8) fail('考刻对比应 8 行');
+  await page.evaluate(() => {
+    const tables = [...document.querySelectorAll('.dtable')];
+    const t = tables.find((x) => x.textContent.includes('刻干数') && x.textContent.includes('归并'));
+    const lastRow = t.querySelectorAll('tbody tr')[7];
+    [...lastRow.querySelectorAll('a')].find((a) => a.textContent.includes('采用')).click();
+  });
+  await page.waitForFunction(
+    () => [...document.querySelectorAll('.stat-row .stat')].some((s) => s.textContent.includes('否')),
+    { timeout: 30000 },
+  );
+  const override = await page.evaluate(() => ({
+    stats: [...document.querySelectorAll('.stat-row .stat')].map((s) => s.textContent),
+    url: location.search,
+  }));
+  console.log('override stats:', JSON.stringify(override.stats.filter((s) => s.includes('八刻') || s.includes('辟卦'))));
+  if (!override.stats.some((s) => s.includes('刻干数 8'))) fail('采用后刻干数非 8');
+  if (!override.stats.some((s) => s.includes('否'))) fail('采用后卦非否');
+  if (!override.url.includes('k=8')) fail('URL 未带 k=8（分享参数）');
+  await page.screenshot({ path: shot('smoke-kaoke.png') });
+
   // 8. 移动端首页快照
   await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
   await page.goto(`${BASE}/volumes`, { waitUntil: 'networkidle0', timeout: 60000 });
