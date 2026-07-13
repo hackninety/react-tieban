@@ -1,0 +1,31 @@
+{
+  "name": "react-tieban",
+  "private": true,
+  "version": "0.1.0",
+  "description": "铁板神数语料阅读与检索 —— 一万二千条文 · 十四考取数表 · 注解精选",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "dompurify": "^3.4.12",
+    "marked": "^18.0.6",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-router-dom": "^7.18.1",
+    "tbss-ts-lib": "github:hackninety/tbss-ts-lib#v0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "oxlint": "^1.71.0",
+    "puppeteer-core": "^25.3.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1"
+  }
+}

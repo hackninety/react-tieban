@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="铁板神数语料阅读与检索：一万二千条文十二集、十四考取数表、注解精选与方法文献" />
+    <title>铁板神数</title>
+    <script>
+      // 主题防闪烁：渲染前依 localStorage 预置 data-theme（铁/雪/玄，默认铁）
+      (function () {
+        var t;
+        try { t = localStorage.getItem('tieban.theme'); } catch (e) { /* ignore */ }
+        document.documentElement.setAttribute('data-theme', t === 'xue' || t === 'xuan' ? t : 'tie');
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
