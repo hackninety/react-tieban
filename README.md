@@ -32,10 +32,13 @@
   校正前后时刻与分项时差在基础信息中明示（铁板取数精确到刻，经度校正直接影响八刻与时柱）。
   求测时刻带「此刻」按钮——按**盘面时区**（城市模式恒 UTC+8、手动模式取所填时区）换算当前时间，
   浏览器异时区时表单内明示提醒；流年表前有**三口径图例**（原条文/校正后/终局的取数途径与用途）
-- **盘面导出** 排盘页内：**MD** 完整报告（基础排盘/大限/考刻对比/本命条文/流年百岁断语/口径出处，
-  仿上游 save_to_md 版式扩充）与 **TOON**（[Token-Oriented Object Notation](https://github.com/toon-format/toon)
-  官方编码，同盘面比 JSON 省 20%+ 字符，流年走表格化数组）——下载或一键复制，
-  可直接粘入 LLM 对话做批断；导出经 `decode` 往返校验无损
+- **数据导出 · AI 分析** 排盘页尾卡片（版式参照 react-8char，配色沿用铁系）：**MD** 完整报告
+  （基础排盘/考刻对比/本命条文/流年百岁断语/口径出处，仿上游 save_to_md 版式扩充）与
+  **TOON**（[Token-Oriented Object Notation](https://github.com/toon-format/toon)
+  官方编码，同盘面比 JSON 省 20%+ 字符，流年走表格化数组）文件下载（标注体积），
+  加 **AI Prompt 一键复制**（TOON / Markdown 两口径，内嵌角色设定、盘面字段说明、
+  分析框架、反幻觉纪律与追问协议，粘入 ChatGPT / Claude 即得完整分析）；
+  卡片尾部 TOON 预览；导出经 `decode` 往返校验无损
 - **条文库** `/volumes` 十二集切换 + 分页条文列表（100 条/页），条文号直达
 - **单条** `/v/:n` 断语大字视图 + 出处行 + 前后条翻页
 - **检索** `/search` 断语全文（繁简折叠，可限某集）＋ 按岁数反查年龄注记条文
@@ -75,6 +78,23 @@ npm run lint       # oxlint
 ```
 
 本地并排改库：`npm install file:../tbss-ts-lib` 后重启 dev server。
+
+## 部署（Cloudflare Pages）
+
+生产站点 <https://tbss.0x7c.cc/>。Dashboard → Workers & Pages → 项目绑定本仓库后：
+
+| 配置项 | 值 |
+|---|---|
+| Build command | `npm run build` |
+| Build output directory | `dist` |
+| Production branch | `main` |
+| Node.js 版本 | **≥ 20.19**（仓库 `.node-version` 已钉 22，CF 会自动读取） |
+
+注意：Vite 8 硬性要求 Node ≥ 20.19 / ≥ 22.12，而 CF Pages 构建镜像默认 Node 18——
+若构建日志报 `crypto.hash is not a function` 或 EBADENGINE 即是此因，`.node-version`
+入库后重新部署即可。`tbss-ts-lib` 以 `git+https` 方式引入（公开仓库匿名可取，CI 无需 SSH 凭证）。
+自定义域 522 排查：Pages 项目须有**成功的 Production 部署**，且 `tbss.0x7c.cc` 已添加进该项目的
+**Custom domains**（仅 DNS CNAME 指向 pages.dev 而未在项目里登记会直接 522）。
 
 ## 声明
 
