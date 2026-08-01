@@ -12,12 +12,16 @@
 import puppeteer from 'puppeteer-core';
 import path from 'node:path';
 
-const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+const CHROME = process.env.CHROME ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const BASE = 'http://localhost:5187';
 const OUT = process.argv[2] ?? '.';
 const shot = (name) => path.join(OUT, name);
 
-const browser = await puppeteer.launch({ executablePath: CHROME, headless: true });
+const browser = await puppeteer.launch({
+  executablePath: CHROME,
+  headless: true,
+  args: (process.env.CHROME_ARGS ?? '').split(' ').filter(Boolean),
+});
 const fail = (msg) => { console.error('FAIL:', msg); process.exitCode = 1; };
 const errors = [];
 try {
@@ -217,46 +221,75 @@ try {
     { timeout: 30000 },
   );
   await page.waitForFunction(
-    () => [...document.querySelectorAll('.export-row .btn')].some((b) => b.textContent.includes('TOON') && !b.disabled),
+    () => [...document.querySelectorAll('.export-card .btn')].some((b) => b.textContent.includes('TOON') && !b.disabled),
     { timeout: 30000 },
   );
+  // 导出卡片版式（参照 react-8char）：标题 + 就绪徽标 + TOON 预览
+  const exportCard = await page.evaluate(() => ({
+    head: document.querySelector('.export-card .export-head')?.textContent ?? '',
+    badge: document.querySelector('.export-card .export-badge')?.textContent ?? '',
+    preview: document.querySelector('.export-preview pre')?.textContent?.slice(0, 40) ?? '',
+    fileBtns: [...document.querySelectorAll('.export-card .btn:not(.btn-seal)')].map((b) => b.textContent),
+    aiBtns: [...document.querySelectorAll('.export-card .btn-seal')].map((b) => b.textContent),
+  }));
+  console.log('export card:', JSON.stringify(exportCard));
+  if (!exportCard.head.includes('数据导出 · AI 分析')) fail('导出卡标题异常');
+  if (!exportCard.badge.includes('已准备好喂 AI')) fail('导出卡就绪徽标异常');
+  if (!exportCard.preview.includes('meta:')) fail('TOON 预览未渲染');
+  if (!exportCard.fileBtns.some((t) => /导出 MD 文件（[\d.]+ KB）/.test(t))) fail('MD 文件按钮缺体积标注');
+  if (exportCard.aiBtns.length !== 2) fail('AI 复制按钮应 2 枚');
+  // CDP 下载：allowAndName 按 guid 落盘 + downloadWillBegin 取建议文件名再重命名
+  //（部分 Chromium 版本在 behavior:'allow' 下不认 blob 锚点的 download 文件名）
   const cdp = await browser.target().createCDPSession();
+  const dlNames = new Map();
+  const dlDone = new Set();
+  cdp.on('Browser.downloadWillBegin', (e) => dlNames.set(e.guid, e.suggestedFilename));
+  cdp.on('Browser.downloadProgress', (e) => { if (e.state === 'completed') dlDone.add(e.guid); });
   await cdp.send('Browser.setDownloadBehavior', {
-    behavior: 'allow',
+    behavior: 'allowAndName',
     downloadPath: path.resolve(OUT),
     eventsEnabled: true,
   });
+  const { readFileSync, renameSync } = await import('node:fs');
+  // 逐次点击逐次收取：按完成顺序取下载，内容断言为主；建议文件名仅在浏览器
+  // 提供时校验（headless shell 对 blob 锚点一律给 "download"，真 Chrome 给完整名）
+  const waitDownload = async (ext) => {
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      for (const guid of dlDone) {
+        dlDone.delete(guid);
+        const name = dlNames.get(guid) ?? '';
+        const content = readFileSync(path.join(OUT, guid), 'utf8');
+        if (name && name !== 'download') {
+          if (!(name.startsWith('铁板排盘_') && name.endsWith(ext))) fail(`下载文件名异常：${name}（期望 铁板排盘_*.${ext.slice(1)}）`);
+          renameSync(path.join(OUT, guid), path.join(OUT, name));
+        }
+        return { name: name || guid, content };
+      }
+    }
+    return null;
+  };
+
   await page.evaluate(() => {
-    [...document.querySelectorAll('.export-row .btn')].find((b) => b.textContent.includes('下载 TOON')).click();
+    [...document.querySelectorAll('.export-card .btn')].find((b) => b.textContent.includes('导出 TOON')).click();
   });
-  const { readdirSync, readFileSync } = await import('node:fs');
-  let toonFile = '';
-  for (let i = 0; i < 40 && !toonFile; i++) {
-    await new Promise((r) => setTimeout(r, 250));
-    toonFile = readdirSync(OUT).find((f) => f.endsWith('.toon') && !f.endsWith('.crdownload')) ?? '';
-  }
-  if (!toonFile) fail('TOON 下载未落盘');
+  const toonDl = await waitDownload('.toon');
+  if (!toonDl) fail('TOON 下载未落盘');
   else {
-    const toon = readFileSync(path.join(OUT, toonFile), 'utf8');
-    console.log('toon file:', toonFile, toon.length, 'chars');
-    if (!toon.includes('format: tbss-chart')) fail('TOON 缺 meta');
-    if (!toon.includes('liunian[100]{')) fail('TOON 缺流年表');
-    if (!toon.includes('吹落黄花弄笛声')) fail('TOON 缺断语文本');
-    if (toon.includes('daYun')) fail('TOON 不应再含子平大限');
+    console.log('toon file:', toonDl.name, toonDl.content.length, 'chars');
+    if (!toonDl.content.includes('format: tbss-chart')) fail('TOON 缺 meta');
+    if (!toonDl.content.includes('liunian[100]{')) fail('TOON 缺流年表');
+    if (!toonDl.content.includes('吹落黄花弄笛声')) fail('TOON 缺断语文本');
+    if (toonDl.content.includes('daYun')) fail('TOON 不应再含子平大限');
   }
   await page.evaluate(() => {
-    [...document.querySelectorAll('.export-row .btn')].find((b) => b.textContent.includes('下载 MD')).click();
+    [...document.querySelectorAll('.export-card .btn')].find((b) => b.textContent.includes('导出 MD')).click();
   });
-  let mdFile = '';
-  for (let i = 0; i < 40 && !mdFile; i++) {
-    await new Promise((r) => setTimeout(r, 250));
-    mdFile = readdirSync(OUT).find((f) => f.endsWith('.md') && f.includes('铁板排盘')) ?? '';
-  }
-  if (!mdFile) fail('MD 下载未落盘');
+  const mdDl = await waitDownload('.md');
+  if (!mdDl) fail('MD 下载未落盘');
   else {
-    const md = readFileSync(path.join(OUT, mdFile), 'utf8');
-    console.log('md file:', mdFile, md.length, 'chars');
-    if (!md.includes('## 流年条文（1–100 岁）')) fail('MD 缺流年章节');
+    console.log('md file:', mdDl.name, mdDl.content.length, 'chars');
+    if (!mdDl.content.includes('## 流年条文（1–100 岁）')) fail('MD 缺流年章节');
   }
 
   // 8. 移动端首页快照

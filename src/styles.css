@@ -420,9 +420,6 @@ select:focus { outline: none; border-color: var(--accent); }
 .verse-ages { flex: none; color: var(--warn); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .verse-ages.hit { color: var(--ok); font-weight: 700; background: color-mix(in srgb, var(--ok) 12%, transparent); border-radius: 5px; padding: 0 4px; }
 .dtable tr.row-active td { background: var(--accent-wash); }
-.export-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
-.export-row .btn { border-width: 1px; }
-.export-row .btn:disabled { opacity: 0.45; cursor: default; }
 .dtable tr.row-current td { background: color-mix(in srgb, var(--seal) 10%, transparent); }
 .dtable tr.row-current td:first-child { border-left: 3px solid var(--seal); font-weight: 700; }
 
@@ -510,6 +507,67 @@ select:focus { outline: none; border-color: var(--accent); }
 .btn-run {
   padding: 8px 14px; text-align: center; font-weight: 600;
   border-color: var(--accent);
+}
+
+/* ===== 数据导出 · AI 分析卡片（版式参照 react-8char，配色沿用铁系令牌）===== */
+.export-card {
+  background: var(--paper);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+  padding: 16px 18px;
+  margin-top: 30px;
+}
+.export-head {
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 700; font-size: 15.5px; letter-spacing: 0.06em;
+  color: var(--seal);
+}
+.export-head svg { width: 16px; height: 16px; flex: none; }
+.export-meta {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 8px;
+}
+.export-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; font-family: var(--font-sans); white-space: nowrap;
+  color: var(--ok); background: color-mix(in srgb, var(--ok) 11%, transparent);
+  border-radius: var(--radius-pill); padding: 2px 11px;
+}
+.export-badge.pending { color: var(--warn); background: color-mix(in srgb, var(--warn) 11%, transparent); }
+.export-badge svg { width: 12px; height: 12px; flex: none; }
+.export-meta .hint { font-size: 12px; color: var(--ink-faint); }
+.export-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+@media (max-width: 560px) { .export-grid { grid-template-columns: 1fr; } }
+.export-grid .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 8px 14px; font-size: 13.8px;
+  border-radius: var(--radius-sm);
+}
+.export-grid .btn svg { width: 14px; height: 14px; flex: none; }
+.export-grid .btn:disabled { opacity: 0.45; cursor: default; }
+.btn-seal {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--seal) 94%, #fff), color-mix(in srgb, var(--seal) 84%, #2c1210));
+  color: #f6efe4;
+  border: 1px solid transparent;
+  box-shadow: 0 2px 8px rgba(110, 40, 40, 0.22);
+  font-weight: 600;
+}
+.btn-seal:hover:not(:disabled) { opacity: 0.92; border-color: transparent; background: linear-gradient(135deg, color-mix(in srgb, var(--seal) 94%, #fff), color-mix(in srgb, var(--seal) 84%, #2c1210)); }
+.export-preview {
+  margin-top: 12px;
+  background: var(--paper-sunk);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--radius-sm);
+  padding: 10px 13px;
+  max-height: 170px; overflow-y: auto;
+}
+.export-preview pre {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 11px; line-height: 1.7;
+  color: var(--ink-faint);
+  white-space: pre-wrap; word-break: break-all;
 }
 
 /* ===== 阅读器 / markdown ===== */
