@@ -379,8 +379,16 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-co
 }
 .search-box:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
 .search-box::placeholder { color: var(--ink-faint); }
+/* 检索输入 + 按钮成行（iOS 数字键盘无回车，须有可点按钮） */
+.search-row { display: flex; gap: 8px; align-items: stretch; margin: 4px 0 10px; }
+.search-row .search-box { margin: 0; flex: 1; min-width: 0; }
+.search-row .btn {
+  flex: none; display: inline-flex; align-items: center;
+  padding: 0 16px; border-radius: var(--radius-sm); font-weight: 600;
+  border-color: var(--accent);
+}
 select {
-  width: 100%; padding: 7px 10px;
+  width: 100%; min-width: 0; padding: 7px 10px;
   border: 1px solid var(--rule); border-radius: var(--radius-sm);
   background: var(--paper); color: var(--ink); margin-bottom: 6px;
 }
@@ -503,7 +511,12 @@ select:focus { outline: none; border-color: var(--accent); }
 @media (max-width: 880px) { .paipan-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 560px) { .paipan-grid { grid-template-columns: 1fr; } }
 .form-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.form-field input[type="datetime-local"] { font-variant-numeric: tabular-nums; }
+/* iOS 的日期时间控件固有 min-width 很宽，会压过 width:100% 撑破单列网格——钳回 0 */
+.form-field input[type="datetime-local"] { font-variant-numeric: tabular-nums; min-width: 0; max-width: 100%; }
+input[type="datetime-local"]::-webkit-date-and-time-value { text-align: left; }
+/* 真太阳时行：桌面四列；移动端两列（内联列宽会压过媒体查询，故成类） */
+.loc-grid { grid-template-columns: 130px 1fr 1fr 1fr; margin-top: 12px; }
+@media (max-width: 880px) { .loc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .btn-run {
   padding: 8px 14px; text-align: center; font-weight: 600;
   border-color: var(--accent);

@@ -72,6 +72,8 @@ try {
   const textHits = await page.evaluate(() => document.querySelectorAll('.results .verse-list li').length);
   console.log('search 姻缘 hits:', textHits);
   if (textHits < 5) fail('全文检索命中过少');
+  const searchBtn = await page.evaluate(() => document.querySelector('.search-row .btn')?.textContent ?? '');
+  if (searchBtn !== '检索') fail('检索按钮缺失（iOS 数字键盘无回车须靠它提交）');
   await page.goto(`${BASE}/search?mode=age&q=47`, { waitUntil: 'networkidle0', timeout: 60000 });
   await page.waitForFunction(() => document.querySelectorAll('.results .verse-list li').length > 0, { timeout: 30000 });
   const ageHits = await page.evaluate(() => document.querySelectorAll('.results .verse-list li').length);

@@ -42,12 +42,17 @@ export default function Search() {
             onClick={() => setParams({ mode: 'age', ...(q && /^\d+$/.test(q) ? { q } : {}) })}>按岁</button>
         </div>
 
-        <input className="search-box"
-          inputMode={mode === 'age' ? 'numeric' : undefined}
-          placeholder={mode === 'age' ? '岁数（如 47）' : '断语全文（如 姻缘 / 殘花）'}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />
+        {/* iOS 数字九宫格键盘没有回车键，检索按钮不可省 */}
+        <div className="search-row">
+          <input className="search-box"
+            inputMode={mode === 'age' ? 'numeric' : undefined}
+            enterKeyHint="search"
+            placeholder={mode === 'age' ? '岁数（如 47）' : '断语全文（如 姻缘 / 殘花）'}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />
+          <button className="btn" onClick={submit}>检索</button>
+        </div>
 
         {mode === 'text' && (
           <select value={scope} onChange={(e) => setParams({ ...(q ? { q } : {}), ...(e.target.value ? { vol: e.target.value } : {}) })}>
@@ -64,7 +69,7 @@ export default function Search() {
       </aside>
 
       <main className="main results">
-        {!q && <p className="muted">输入{mode === 'age' ? '岁数' : '关键词'}回车检索。</p>}
+        {!q && <p className="muted">输入{mode === 'age' ? '岁数' : '关键词'}，点「检索」或回车。</p>}
         {busy && <p className="muted">检索中（按集渐进加载）…</p>}
 
         {hits && !busy && (

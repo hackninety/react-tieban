@@ -204,7 +204,7 @@ export default function Paipan() {
             <button className="btn btn-run" onClick={() => run({ k: '' })}>起盘 →</button>
           </label>
         </div>
-        <div className="paipan-grid" style={{ gridTemplateColumns: '130px 1fr 1fr 1fr', marginTop: 12 }}>
+        <div className="paipan-grid loc-grid">
           <label className="form-field">
             <span className="muted">真太阳时</span>
             <select value={locMode} style={{ margin: 0 }}
@@ -267,7 +267,7 @@ export default function Paipan() {
             </>
           )}
           {locMode === 'off' && (
-            <span className="muted" style={{ alignSelf: 'end', paddingBottom: 8, gridColumn: 'span 3' }}>
+            <span className="muted" style={{ alignSelf: 'end', paddingBottom: 8, gridColumn: '1 / -1' }}>
               铁板取数精确到刻（15 分钟），建议按出生地校正真太阳时；出生与求测时刻同址同校。
               时刻按墙钟直读（浏览器时区 UTC{browserTz.offsetHours >= 0 ? '+' : ''}{browserTz.offsetHours} · {browserTz.iana}）。
             </span>
