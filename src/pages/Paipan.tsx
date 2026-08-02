@@ -182,8 +182,11 @@ export default function Paipan() {
           </label>
           <label className="form-field">
             <span className="muted">出生时刻（精确到分，供八刻细分）</span>
-            <input className="search-box" type="datetime-local" value={birthStr}
-              onChange={(e) => setBirthStr(e.target.value)} style={{ margin: 0 }} />
+            {/* 与求测时刻同构的 flex 行：iOS 对 datetime 控件按固有宽布局，仅 flex 定宽可靠 */}
+            <div style={{ display: 'flex' }}>
+              <input className="search-box" type="datetime-local" value={birthStr}
+                onChange={(e) => setBirthStr(e.target.value)} style={{ margin: 0, flex: 1, minWidth: 0 }} />
+            </div>
           </label>
           <label className="form-field">
             <span className="muted">求测时刻（日命/时运取此时辰）</span>

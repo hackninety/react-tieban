@@ -511,8 +511,12 @@ select:focus { outline: none; border-color: var(--accent); }
 @media (max-width: 880px) { .paipan-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 560px) { .paipan-grid { grid-template-columns: 1fr; } }
 .form-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-/* iOS 的日期时间控件固有 min-width 很宽，会压过 width:100% 撑破单列网格——钳回 0 */
-.form-field input[type="datetime-local"] { font-variant-numeric: tabular-nums; min-width: 0; max-width: 100%; }
+/* iOS 的日期时间控件按替换元素固有宽布局：钳 min/max-width 并去掉原生外观，宽度交回 CSS */
+.form-field input[type="datetime-local"] {
+  font-variant-numeric: tabular-nums;
+  min-width: 0; max-width: 100%;
+  -webkit-appearance: none; appearance: none;
+}
 input[type="datetime-local"]::-webkit-date-and-time-value { text-align: left; }
 /* 真太阳时行：桌面四列；移动端两列（内联列宽会压过媒体查询，故成类） */
 .loc-grid { grid-template-columns: 130px 1fr 1fr 1fr; margin-top: 12px; }

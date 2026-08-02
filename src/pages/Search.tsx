@@ -69,8 +69,8 @@ export default function Search() {
       </aside>
 
       <main className="main results">
-        {!q && <p className="muted">输入{mode === 'age' ? '岁数' : '关键词'}，点「检索」或回车。</p>}
-        {busy && <p className="muted">检索中（按集渐进加载）…</p>}
+        {!q && <p className="muted" style={{ textAlign: 'center' }}>输入{mode === 'age' ? '岁数' : '关键词'}，点「检索」或回车。</p>}
+        {busy && <p className="muted" style={{ textAlign: 'center' }}>检索中（按集渐进加载）…</p>}
 
         {hits && !busy && (
           <section>
