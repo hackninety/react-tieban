@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import type { Chart } from '../engine/engine';
 import { chartToMarkdown, chartToToon, exportFileName, type VerseLike } from '../engine/export';
 import { generateAIPrompt } from '../engine/prompt';
+import { useMingliMode } from '../hooks/useMingliMode';
+import { MingliModePanel } from './MingliModePanel';
 
 /** 预估文件大小（UTF-8 字节数，与下载落盘一致） */
 function formatSize(text: string): string {
@@ -49,6 +51,7 @@ const IconSpark = () => (
  * 标题徽标 → 文件下载（MD/TOON，标注体积）→ AI Prompt 一键复制（角色/框架/纪律内嵌）→ TOON 预览。
  */
 export default function ExportCard({ chart, verses }: { chart: Chart; verses: ReadonlyMap<number, VerseLike> }) {
+  const mingliMode = useMingliMode(chart);
   const versesReady = verses.size > 0;
   const [copied, setCopied] = useState<'toon' | 'md' | null>(null);
 
@@ -69,7 +72,8 @@ export default function ExportCard({ chart, verses }: { chart: Chart; verses: Re
   };
   const exportToon = () => downloadText(exportFileName(chart, 'toon'), toonText, 'text/plain');
   const copyPrompt = async (fmt: 'toon' | 'md') => {
-    await navigator.clipboard.writeText(generateAIPrompt(fmt === 'toon' ? toonText : markdown, fmt));
+    const prompt = generateAIPrompt(fmt === 'toon' ? toonText : markdown, fmt);
+    await navigator.clipboard.writeText(mingliMode.gate.appendReference(prompt, mingliMode.gate.getSnapshot()));
     setCopied(fmt);
     setTimeout(() => setCopied(null), 1600);
   };
@@ -83,6 +87,7 @@ export default function ExportCard({ chart, verses }: { chart: Chart; verses: Re
         </span>
         <span className="hint">含基础排盘、考刻对比与流年百岁三口径断语；MD 报告最完整，TOON 为紧凑等价表示、更省 token</span>
       </div>
+      <MingliModePanel {...mingliMode} />
       <div className="export-grid">
         <button className="btn" disabled={!versesReady} onClick={exportMd}>
           <IconDownload />导出 MD 文件{versesReady ? `（${mdSize}）` : ''}

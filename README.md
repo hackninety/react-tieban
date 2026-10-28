@@ -49,6 +49,14 @@
 样式沿用 react-* 家族令牌体系（paper/ink/rule/seal + 宣纸噪纹 + 印章），
 配色独立为「铁」系：玄铁青 × 锈朱，三主题 铁 / 雪 / 玄（localStorage 持久化、防闪烁预置）。
 
+## 命例参考
+
+排盘页的「数据导出 · AI 分析」卡片提供默认关闭的「算命模式」。手动开启后再展开「命例库」，可检索人生主题案例；选中「用于 AI 参考」后，两种 AI Prompt 都会附上独立命例及来源。纯盘面 MD / TOON 文件保持原样。
+
+开启状态不持久化；关闭模式、换盘会清除引用，普通阅读与未开启的排盘页不加载命例界面或数据。出生和查询时间仍按原口径处理。命例属于其他命主，不能迁移为当前求测人的经历，也不能作为铁板原典条文或算法验证。
+
+门控回归：`npm run test:e2e` 会构建后启动独立临时预览，通过 Playwright 截获真实复制文本，验证默认关闭、仅开启时均不加载资源，展开后按需加载，关闭后复制恢复原文。结果写入忽略目录 `test-results/`。默认使用 Windows 系统 Chrome；其他环境先运行 `npx playwright install chromium`，或用 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` 指定浏览器。`E2E_BASE_URL` 可指向已有预览。
+
 ## 排盘引擎（src/engine）
 
 考刻推演为 [xaminxan/tiebanshenshu](https://github.com/xaminxan/tiebanshenshu) 算法的

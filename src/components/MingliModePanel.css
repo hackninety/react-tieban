@@ -1,0 +1,18 @@
+.mingli-mode {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--color-border, var(--rule, #8885));
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.mingli-mode-switch { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
+.mingli-mode-switch input { accent-color: var(--color-gold, var(--accent, #806b3d)); width: 16px; height: 16px; }
+.mingli-mode-hint { margin: 4px 0 0; opacity: .72; font-size: 12px; }
+.mingli-mode-content { margin-top: 10px; min-width: 0; }
+.mingli-mode-open, .mingli-mode-selection button {
+  border: 1px solid var(--color-border, var(--rule, #8885)); border-radius: 6px;
+  padding: 5px 10px; font: inherit; color: inherit; background: transparent; cursor: pointer;
+}
+.mingli-mode-open:hover, .mingli-mode-selection button:hover { background: var(--accent-wash, #8881); }
+.mingli-mode-selection { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
