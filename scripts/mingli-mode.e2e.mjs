@@ -55,7 +55,8 @@ async function startPreview() {
   try {
     for (let attempt = 0; attempt < 100; attempt += 1) {
       if (child.exitCode !== null) throw new Error(`预览服务启动失败：${output}`);
-      if (output.includes(base)) {
+      // Vite 在 Windows 上默认输出颜色码，会把地址里的端口拆开，先去掉再匹配。
+      if (output.replace(/\x1b\[[0-9;]*m/g, '').includes(base)) {
         const response = await fetch(base);
         if (response.ok) return { base, stop };
       }
@@ -121,14 +122,27 @@ test('真实浏览器：算命模式双重懒加载与 AI 复制引用隔离', {
     await page.locator('.ml-case').first().click();
     await page.locator('.ml-detail h3').waitFor();
     const selectedCase = await page.locator('.ml-detail h3').innerText();
-    await page.getByRole('button', { name: /用于 AI 参考/ }).click();
+    const referenceWithout = page.getByRole('button', { name: '用于 AI 参考（不含答案）', exact: true });
+    const referenceWith = page.getByRole('button', { name: '用于 AI 参考（含已揭晓答案）', exact: true });
+    assert.equal(await referenceWith.isDisabled(), true, '未揭晓答案时不能选含答案参考');
+    await referenceWithout.click();
     await page.locator('.mingli-mode-selection').waitFor();
     const withReference = await copyPrompt();
     assert.ok(withReference.startsWith(baseline + '\n\n## 算命模式 · 独立命例参考'));
     assert.ok(withReference.includes(selectedCase));
     assert.ok(withReference.includes('不得把案例中的经历、结果或身份迁移到本盘'));
     assert.match(withReference, /来源：https:\/\//);
-    assert.ok(requests.some((item) => item.kind === 'answers'), '选为参考后才加载答案');
+    assert.ok(!withReference.includes('显式揭晓的原资料答案'), '默认参考不含答案');
+    await page.waitForLoadState('networkidle');
+    assert.equal(requests.filter((item) => item.kind === 'answers').length, 0, '默认参考不加载答案');
+
+    await page.getByRole('button', { name: '揭晓答案', exact: true }).click();
+    await page.locator('.ml-answer').first().waitFor();
+    assert.ok(requests.some((item) => item.kind === 'answers'), '揭晓答案后才加载答案');
+    await referenceWith.click();
+    const withAnswers = await copyPrompt();
+    assert.ok(withAnswers.startsWith(baseline + '\n\n## 算命模式 · 独立命例参考'));
+    assert.ok(withAnswers.includes('显式揭晓的原资料答案'), '明示选择含答案参考后才附答案');
 
     await mode.uncheck();
     assert.equal(await page.locator('.ml-cases').count(), 0);
