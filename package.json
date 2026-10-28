@@ -22,7 +22,7 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1",
-    "tbss-ts-lib": "git+https://github.com/hackninety/tbss-ts-lib.git#v0.1.0"
+    "tbss-ts-lib": "https://github.com/hackninety/common-ts-lib/releases/download/tbss-ts-lib-v0.1.0/tbss-ts-lib-0.1.0.tgz"
   },
   "devDependencies": {
     "@types/node": "^24.13.2",

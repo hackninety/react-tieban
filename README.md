@@ -1,10 +1,10 @@
 # react-tieban · 铁板神数
 
 铁板神数语料阅读与检索前端。Vite + React + TypeScript，语料以
-[tbss-ts-lib](https://github.com/hackninety/tbss-ts-lib) 接入
-（GitHub tag 固定引入；卷册索引同步、条文载荷按十二集分包懒加载，首屏仅数 KB 索引）。
+[tbss-ts-lib](https://github.com/hackninety/common-ts-lib/tree/main/packages/tbss-ts-lib) 接入
+（锁定独立版本的 GitHub Release 压缩包；卷册索引同步、条文载荷按十二集分包懒加载，首屏仅数 KB 索引）。
 
-## 语料（tbss-ts-lib `#v0.1.0`）
+## 语料（tbss-ts-lib `0.1.0`）
 
 | 分支 | 规模 |
 |---|---|
@@ -71,13 +71,13 @@ TypeScript 移植，叠加 [Nanphy/TiebanshenshuOS](https://github.com/Nanphy/Ti
 ## 开发
 
 ```bash
-npm install
+npm ci             # 从锁文件安装 common-ts-lib Release 中的独立预构建包
 npm run dev        # http://localhost:5173（.claude/launch.json 固定 5187）
 npm run build      # tsc -b && vite build
 npm run lint       # oxlint
 ```
 
-本地并排改库：`npm install file:../tbss-ts-lib` 后重启 dev server。
+本地并排改库：`npm install file:../common-ts-lib/packages/tbss-ts-lib` 后重启 dev server。
 
 ## 部署（Cloudflare Pages）
 
@@ -92,7 +92,8 @@ npm run lint       # oxlint
 
 注意：Vite 8 硬性要求 Node ≥ 20.19 / ≥ 22.12，而 CF Pages 构建镜像默认 Node 18——
 若构建日志报 `crypto.hash is not a function` 或 EBADENGINE 即是此因，`.node-version`
-入库后重新部署即可。`tbss-ts-lib` 以 `git+https` 方式引入（公开仓库匿名可取，CI 无需 SSH 凭证）。
+入库后重新部署即可。`tbss-ts-lib` 从 common-ts-lib 的版本化 GitHub Release 下载预构建压缩包，
+公开地址匿名可取，CI 无需 SSH 凭证，也无需在前端安装时构建语料。
 自定义域 522 排查：Pages 项目须有**成功的 Production 部署**，且 `tbss.0x7c.cc` 已添加进该项目的
 **Custom domains**（仅 DNS CNAME 指向 pages.dev 而未在项目里登记会直接 522）。
 
