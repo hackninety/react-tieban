@@ -8,14 +8,20 @@
 
 支持 MCP 的 AI 客户端可连接 **[https://mcp.0x7c.cc/mcp](https://mcp.0x7c.cc/mcp)**，传输方式选 **Streamable HTTP**，认证选**无**，无需访问令牌。MCP 负责排盘和 common 资料检索，当前 AI 再据此解读；远程调用会把填写的生辰等参数发送到该服务。
 
+统一服务 `paipan-common` 提供 **31 个工具**：6 个跨术数排盘与 common 检索基础工具、11 个 `bazi_` 八字高级工具、14 个 `taiyi_` 太乙高级工具；另有 7 个提示词和 5 个静态资源。本机 stdio 与远程 HTTP 使用同一套能力，每次传完整参数，不使用旧 `chartId`。
+
+`prepare_reading.searchQueries` 可明确提供 1–3 个检索关键词，原问题保留在 `question`，结果会返回实际关键词。铁板一键检索覆盖条文、注释和方法文档，并返回实际检索类别；考刻可指定 `searchQueries: ["考刻"]`，盘面条文号按精确编号定位。
+
+首次配置时按所用客户端选择一条；本机 stdio 与远程 HTTP 二选一。已存在 `paipan-common` 时先在客户端移除旧同名连接再更换方式，旧 `bazi`、`taiyi`、`paipan-common-remote` 连接可移除，避免重复注册。保存后重连 MCP。
+
 安装对应 CLI 后，在终端执行其中一条：
 
 ```bash
 # Codex
-codex mcp add paipan-common-remote --url https://mcp.0x7c.cc/mcp
+codex mcp add paipan-common --url https://mcp.0x7c.cc/mcp
 
 # Claude Code（当前用户范围）
-claude mcp add --transport http --scope user paipan-common-remote https://mcp.0x7c.cc/mcp
+claude mcp add --transport http --scope user paipan-common https://mcp.0x7c.cc/mcp
 ```
 
 配置后重新打开客户端会话。已有本机 `paipan-common` 配置时，本机与远程选择一个即可，无需重复添加。命令说明见 [Codex MCP 文档](https://learn.chatgpt.com/docs/extend/mcp)和 [Claude Code MCP 文档](https://code.claude.com/docs/en/mcp)。
